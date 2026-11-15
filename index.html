@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lempriere Argentina | Almacenamiento de facturas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<style>
+:root {
+  --bg: #EDF0F7; --surface: #FFFFFF; --ink: #141B33; --muted: #59627A; --line: #D3D9E8;
+  --accent: #1F4FD1; --accent-soft: #E4EBFD; --tab: #C3CFF3; --tab-ink: #18276A;
+  --warn: #A1530B; --warn-soft: #FBEBD8; --danger: #B3261E;
+  color-scheme: light; box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0D1120; --surface: #161C30; --ink: #E6EAF5; --muted: #9AA3BC; --line: #29314B;
+    --accent: #7D9BFF; --accent-soft: #1D2754; --tab: #34417F; --tab-ink: #E6EBFF;
+    --warn: #F0A55B; --warn-soft: #3A2814; --danger: #F2867E; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0D1120; --surface: #161C30; --ink: #E6EAF5; --muted: #9AA3BC; --line: #29314B;
+  --accent: #7D9BFF; --accent-soft: #1D2754; --tab: #34417F; --tab-ink: #E6EBFF;
+  --warn: #F0A55B; --warn-soft: #3A2814; --danger: #F2867E; color-scheme: dark;
+}
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+*, *::before, *::after { box-sizing: inherit; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 15px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 32px 20px 64px; }
+header.top { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+h1 { font-size: 2.1rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; margin: 0 0 6px; }
+.sub { color: var(--muted); margin: 0; max-width: 56ch; }
+.me { font: inherit; font-size: .9rem; background: none; border: 1px solid var(--line); border-radius: 99px; padding: 6px 14px; color: var(--ink); cursor: pointer; }
+.me b { font-weight: 700; }
+
+.drop { border: 2px dashed var(--line); border-radius: 14px; background: var(--surface); padding: 20px 22px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; transition: border-color .15s, background .15s; }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop p { margin: 0; flex: 1 1 280px; color: var(--muted); }
+.drop strong { color: var(--ink); display: block; font-size: 1.02rem; }
+.btn { font: inherit; font-weight: 600; border-radius: 9px; padding: 9px 16px; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.btn.danger { color: var(--danger); }
+.btn.small { padding: 5px 12px; font-size: .88rem; }
+.btn:focus-visible, select:focus-visible, input:focus-visible, .row:focus-visible, textarea:focus-visible, .tabs button:focus-visible, .chip:focus-visible, .me:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.status { margin: 10px 2px 0; font-size: .9rem; color: var(--muted); min-height: 1.4em; }
+.status.err { color: var(--danger); }
+
+.tabs { display: flex; gap: 4px; margin-top: 22px; border-bottom: 2px solid var(--line); }
+.tabs button { font: inherit; font-size: 1.05rem; font-weight: 700; background: none; border: 0; color: var(--muted); padding: 10px 18px; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tabs button span { font-weight: 500; font-size: .85rem; margin-left: 6px; }
+.tabhint { color: var(--muted); font-size: .9rem; margin: 10px 2px 0; }
+
+.totals { display: flex; gap: 28px; flex-wrap: wrap; margin: 18px 2px 0; }
+.totals dt { font-size: .8rem; color: var(--muted); }
+.totals dd { margin: 0; font-size: 1.15rem; font-weight: 700; }
+.totals .big dd { color: var(--accent); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 0; align-items: center; }
+.chip { font: inherit; font-size: .88rem; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 99px; padding: 5px 13px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.chip.add { border-style: dashed; color: var(--accent); font-weight: 600; }
+.chip.link { border: 0; background: none; color: var(--muted); text-decoration: underline; padding: 5px 6px; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0 20px; align-items: center; }
+.toolbar input[type=search] { flex: 1 1 240px; }
+input, select, textarea { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 9px; padding: 9px 12px; width: 100%; }
+.toolbar select { width: auto; }
+.toolbar label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .9rem; }
+
+.group { margin-bottom: 30px; }
+.tab { display: inline-flex; align-items: baseline; gap: 12px; background: var(--tab); color: var(--tab-ink); padding: 7px 16px 6px; border-radius: 10px 10px 0 0; font-weight: 700; max-width: 100%; }
+.tab span { font-weight: 500; font-size: .85rem; opacity: .85; white-space: nowrap; }
+.folder { background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--tab); border-radius: 0 12px 12px 12px; overflow: hidden; }
+.row, .head { display: grid; grid-template-columns: 150px 92px minmax(0, 1fr) 120px 130px; gap: 14px; padding: 12px 18px; align-items: center; text-align: left; }
+.head { font-size: .8rem; color: var(--muted); border-bottom: 1px solid var(--line); padding-top: 9px; padding-bottom: 9px; }
+.row { width: 100%; border: 0; border-bottom: 1px solid var(--line); background: none; font: inherit; color: inherit; cursor: pointer; }
+.row:last-child { border-bottom: 0; }
+.row:hover { background: var(--accent-soft); }
+.num { font-weight: 600; }
+.desc b { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.desc small { color: var(--muted); font-size: .85rem; }
+.money { text-align: right; }
+.pill { display: inline-block; margin: 3px 6px 0 0; background: var(--accent-soft); color: var(--accent); font-size: .75rem; font-weight: 600; padding: 1px 9px; border-radius: 99px; }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.foot { display: flex; justify-content: flex-end; gap: 22px; padding: 10px 18px; background: var(--bg); font-size: .9rem; color: var(--muted); }
+.foot b { color: var(--ink); }
+.empty { text-align: center; padding: 48px 20px; color: var(--muted); }
+.empty strong { display: block; color: var(--ink); font-size: 1.1rem; margin-bottom: 4px; }
+
+dialog { border: 0; border-radius: 16px; padding: 0; width: min(940px, calc(100vw - 24px)); max-height: calc(100vh - 32px); background: var(--surface); color: var(--ink); }
+dialog.narrow { width: min(480px, calc(100vw - 24px)); }
+dialog::backdrop { background: rgba(10, 16, 24, .55); }
+.pad { padding: 22px; }
+.dlg { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.dlg .form { padding: 22px; overflow-y: auto; max-height: calc(100vh - 32px); }
+.dlg .preview { background: var(--bg); padding: 16px; overflow: auto; max-height: calc(100vh - 32px); display: flex; align-items: flex-start; justify-content: center; }
+.preview canvas { max-width: 100%; height: auto; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.18); background: #fff; }
+.preview > p { color: var(--muted); align-self: center; text-align: center; }
+dialog h2 { margin: 0 0 16px; font-size: 1.3rem; }
+dialog .hint { color: var(--muted); font-size: .9rem; margin: -8px 0 16px; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.fields label { font-size: .82rem; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+.fields .full { grid-column: 1 / -1; }
+.fields .check { flex-direction: row; align-items: center; gap: 8px; color: var(--ink); }
+.fields .check input { width: auto; }
+.actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+.actions .spacer { flex: 1; }
+.catlist { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.catlist div { display: flex; gap: 8px; }
+.newcat { display: flex; gap: 8px; }
+
+.home { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; justify-content: center; max-width: 1080px; margin: 0 auto; padding: 40px 20px; }
+.home .brand { font-size: 1.05rem; font-weight: 700; color: var(--accent); margin: 0 0 18px; }
+.home h1 { font-size: clamp(2.6rem, 8vw, 5.2rem); line-height: 1; letter-spacing: -0.035em; margin: 0 0 18px; max-width: 12ch; }
+.home .lead { font-size: 1.15rem; color: var(--muted); max-width: 46ch; margin: 0 0 36px; }
+.doors { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; max-width: 980px; }
+.door { font: inherit; text-align: left; display: flex; flex-direction: column; justify-content: flex-start; cursor: pointer; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-top: 6px solid var(--tab); border-radius: 0 0 14px 14px; padding: 18px 20px 20px; }
+.door:hover { border-color: var(--accent); border-top-color: var(--tab); }
+.door:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.door b { display: block; font-size: 1.25rem; margin-bottom: 2px; }
+.door span { color: var(--muted); font-size: .92rem; }
+.door .n { display: block; font-size: 2rem; font-weight: 800; color: var(--accent); margin-top: 10px; }
+.home .upl { margin-top: 22px; }
+.homelink { font: inherit; background: none; border: 0; padding: 0; color: var(--accent); font-weight: 700; cursor: pointer; margin-bottom: 8px; }
+.homelink:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.dates { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.dates input { width: auto; }
+.btn.armed { background: var(--danger); border-color: var(--danger); color: var(--surface); }
+h3 { font-size: 1rem; margin: 22px 0 10px; }
+.items { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.item { display: grid; grid-template-columns: minmax(0, 1fr) 80px 130px 100px 120px 36px; gap: 8px; align-items: center; }
+.item .sub { text-align: right; font-weight: 600; font-size: .92rem; color: var(--ink); margin: 0; max-width: none; }
+.item .x { padding: 6px 0; text-align: center; }
+.itemhead { font-size: .78rem; color: var(--muted); }
+.calc { display: grid; grid-template-columns: auto auto; justify-content: end; gap: 4px 24px; margin: 18px 0 0; padding: 14px 16px; background: var(--bg); border-radius: 10px; }
+.calc dt { color: var(--muted); text-align: right; }
+.calc dd { margin: 0; text-align: right; font-weight: 600; }
+.calc .tot { font-size: 1.15rem; font-weight: 800; color: var(--ink); padding-top: 6px; border-top: 1px solid var(--line); }
+.inv-wrap { width: 100%; background: #fff; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.18); overflow: hidden; }
+.inv { color: #111; background: #fff; font-family: Arial, Helvetica, sans-serif; font-size: 11px; line-height: 1.35; padding: 14px; }
+.inv .box { border: 1px solid #222; }
+.inv .orig { text-align: center; font-weight: 700; font-size: 13px; padding: 4px; border-bottom: 1px solid #222; }
+.inv .hd { display: grid; grid-template-columns: 1fr 1fr; position: relative; }
+.inv .hd > div { padding: 10px 12px; }
+.inv .hd > div:first-child { border-right: 1px solid #222; padding-right: 36px; }
+.inv .hd > div:nth-child(2) { padding-left: 40px; }
+.inv .hd > .letra { padding: 2px 0 4px; }
+.inv .letra { position: absolute; left: 50%; top: 0; transform: translateX(-50%); background: #fff; border: 1px solid #222; border-top: 0; width: 52px; text-align: center; padding: 2px 0 4px; }
+.inv .letra b { font-size: 26px; display: block; line-height: 1.1; }
+.inv .letra small { font-size: 8px; font-weight: 700; }
+.inv .em { text-align: center; font-weight: 700; font-size: 13px; margin: 6px 0 12px; }
+.inv h4 { font-size: 18px; margin: 0 0 6px; }
+.inv p { margin: 2px 0; }
+.inv .cli { border: 1px solid #222; border-top: 0; padding: 8px 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 3px 16px; }
+.inv table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+.inv th { background: #ddd; border: 1px solid #222; padding: 4px; font-size: 10px; text-align: left; }
+.inv td { padding: 4px; vertical-align: top; }
+.inv .r { text-align: right; }
+.inv .tots { border: 1px solid #222; margin-top: 18px; padding: 8px 12px; }
+.inv .tots div { display: flex; justify-content: flex-end; gap: 20px; font-weight: 700; }
+.inv .tots div span:last-child { min-width: 110px; text-align: right; }
+.inv .tots .grand { font-size: 13px; margin-top: 4px; }
+.assoc { background: var(--bg); border-radius: 10px; padding: 12px 14px; margin: -4px 0 16px; font-size: .9rem; }
+.assoc p { margin: 0 0 6px; color: var(--muted); }
+.assoc button { font: inherit; background: none; border: 0; padding: 2px 0; color: var(--accent); cursor: pointer; text-decoration: underline; display: block; text-align: left; }
+.assoc .saldo { margin-top: 8px; font-weight: 700; color: var(--ink); }
+.notes { display: flex; gap: 8px; flex-wrap: wrap; margin: -6px 0 16px; }
+.pill.nc { background: #FDE7E4; color: #A3261B; }
+.pill.nd { background: #FFF1D6; color: #8A5300; }
+
+.money.neg { color: var(--danger); }
+.inv .ref { border: 1px solid #222; border-top: 0; padding: 6px 12px; }
+.inv .nocae { margin-top: 14px; border: 1px dashed #B3261E; color: #B3261E; padding: 6px 10px; font-weight: 700; text-align: center; }
+#printArea { display: none; }
+@media print {
+  body > *:not(#printArea) { display: none !important; }
+  #printArea { display: block !important; }
+  :root { padding: 0; }
+  body { background: #fff; }
+  .inv { padding: 0; font-size: 11px; }
+}
+.preview { flex-direction: column; align-items: center; gap: 10px; }
+.preview img { max-width: 100%; height: auto; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.18); background: #fff; }
+.adj { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 4px; }
+.adj h3 { margin-top: 14px; }
+.adjrow { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: .9rem; }
+.adjrow span { flex: 1; overflow-wrap: anywhere; }
+.pill.pend { background: var(--warn-soft); color: var(--warn); }
+.pill.att { background: var(--bg); color: var(--muted); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; margin-bottom: 20px; }
+.card h3 { margin: 0 0 12px; font-size: 1.05rem; }
+.card .hint { color: var(--muted); font-size: .88rem; margin: -6px 0 12px; }
+.rcontrols { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin: 20px 0 6px; }
+.rcontrols label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .9rem; }
+.rcontrols select { width: auto; }
+.rcontrols input[type=checkbox] { width: auto; }
+.scroll { overflow-x: auto; }
+table.rt { width: 100%; border-collapse: collapse; font-size: .92rem; }
+table.rt th { text-align: right; font-size: .8rem; color: var(--muted); font-weight: 600; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.rt th:first-child, table.rt td:first-child { text-align: left; }
+table.rt td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.rt tr:last-child td { border-bottom: 0; }
+table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
+.up { color: var(--accent); font-weight: 600; }
+.down { color: var(--danger); font-weight: 600; }
+.legend { display: flex; gap: 18px; font-size: .88rem; color: var(--muted); margin-bottom: 6px; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+.ch { width: 100%; height: auto; display: block; }
+.ch text { fill: var(--muted); font-size: 11px; font-family: inherit; }
+.ch .gl { stroke: var(--line); }
+.ch .a { fill: var(--tab); }
+.ch .b { fill: var(--accent); }
+@media (max-width: 760px) {
+  h1 { font-size: 1.7rem; }
+  .head { display: none; }
+  .row { grid-template-columns: 1fr auto; grid-template-areas: "desc total" "num fecha"; row-gap: 4px; }
+  .row .desc { grid-area: desc; } .row .total { grid-area: total; }
+  .row .num { grid-area: num; font-size: .85rem; color: var(--muted); font-weight: 500; }
+  .row .fecha { grid-area: fecha; text-align: right; font-size: .85rem; color: var(--muted); }
+  .row .neto { display: none; }
+  .tabs button { flex: 1; padding: 10px 8px; }
+  .dlg { grid-template-columns: 1fr; }
+  .dlg .form, .dlg .preview { max-height: none; }
+  dialog { overflow-y: auto; }
+  .fields { grid-template-columns: 1fr; }
+  .item { grid-template-columns: 1fr 1fr; }
+  .item .d { grid-column: 1 / -1; }
+  .itemhead { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<section class="home" id="home">
+  <p class="brand">Lempriere Argentina</p>
+  <h1>Almacenamiento de facturas</h1>
+  <p class="lead">Guardá los PDF de tus facturas, separados en recibidas y emitidas, ordenados por fecha y agrupados como necesites.</p>
+  <div class="doors">
+    <button class="door" data-go="recibida"><b>Facturas recibidas</b><span>Lo que nos facturan proveedores y profesionales</span><span class="n" id="nRec">0</span></button>
+    <button class="door" data-go="emitida"><b>Facturas emitidas</b><span>Lo que les facturamos a nuestros clientes</span><span class="n" id="nEmi">0</span></button>
+    <button class="door" data-go="resumen"><b>Resumen y comparación</b><span>Ingresos, gastos e IVA mes a mes, año contra año</span><span class="n" id="nYears">—</span></button>
+  </div>
+  <div class="upl"><button class="btn primary" id="homeUpload">Subir facturas o comprobantes</button> <button class="btn" id="homeEmit">Emitir una factura</button></div>
+</section>
+
+<div class="wrap" id="app" hidden>
+  <header class="top">
+    <div>
+      <button class="homelink" id="goHome">← Lempriere Argentina</button>
+      <h1>Almacenamiento de facturas</h1>
+      <p class="sub">Facturas, notas, tickets y comprobantes de Lempriere Argentina, separados en recibidas y emitidas, con resumen año contra año.</p>
+    </div>
+    <button class="me" id="meBtn" title="Cambiar los datos de tu empresa"></button>
+  </header>
+
+  <section class="drop" id="drop">
+    <p><strong>Arrastrá acá facturas, tickets o comprobantes</strong>Las facturas de ARCA en PDF se leen solas. Las fotos y otros PDF se guardan para que completes los datos.</p>
+    <button class="btn primary" id="pick">Elegir archivos</button>
+    <button class="btn" id="emitBtn">Emitir factura</button>
+    <button class="btn" id="manual">Cargar a mano</button>
+    <input type="file" id="file" accept="application/pdf,image/*" multiple hidden>
+  </section>
+  <p class="status" id="status" role="status"></p>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" id="tab-recibidas" data-dir="recibida">Recibidas<span></span></button>
+    <button role="tab" id="tab-emitidas" data-dir="emitida">Emitidas<span></span></button>
+    <button role="tab" id="tab-resumen" data-dir="resumen">Resumen</button>
+  </nav>
+  <div id="listView">
+  <p class="tabhint" id="tabhint"></p>
+  <dl class="totals" id="totals"></dl>
+
+  <div class="chips" id="chips"></div>
+
+  <div class="toolbar">
+    <input type="search" id="q" placeholder="Buscar por carátula, nombre, número, CAE o fecha (ej. 01/09/2026, septiembre)">
+    <div class="dates">
+      <label>Desde <input type="date" id="dDesde"></label>
+      <label>Hasta <input type="date" id="dHasta"></label>
+      <button class="btn small" id="clearF" type="button">Limpiar filtros</button>
+    </div>
+    <label>Estado
+      <select id="estadoF"><option value="">Todos</option><option value="pendiente">Pendientes</option><option value="saldada">Pagados o cobrados</option></select>
+    </label>
+    <label>Agrupar por
+      <select id="groupBy">
+        <option value="mes">Mes</option>
+        <option value="anio">Año</option>
+        <option value="grupo">Grupo</option>
+        <option value="contra">Proveedor</option>
+        <option value="ninguno">Sin agrupar</option>
+      </select>
+    </label>
+  </div>
+
+  <main id="list"></main>
+  </div>
+
+  <section id="resumen" hidden>
+    <div class="rcontrols">
+      <label>Ver <select id="rDir"><option value="emitida">Emitidas (ingresos)</option><option value="recibida">Recibidas (gastos)</option></select></label>
+      <label>Comparar <select id="rA"></select></label>
+      <label>con <select id="rB"></select></label>
+      <label><input type="checkbox" id="rSame" checked> Mismo período del año</label>
+    </div>
+    <p class="tabhint" id="rNote"></p>
+    <div class="card"><h3>Resumen del año</h3><div class="scroll" id="rKpis"></div></div>
+    <div class="card"><h3>Total por mes</h3><div class="legend" id="rLegend"></div><div id="rChart"></div></div>
+    <div class="card"><h3>Por grupo</h3><div class="scroll" id="rGroups"></div></div>
+    <div class="card"><h3>Posición de IVA por mes</h3><p class="hint" id="rIvaHint"></p><div class="scroll" id="rIva"></div></div>
+  </section>
+</div>
+
+<!-- Ficha de factura -->
+<dialog id="dlg">
+  <div class="dlg">
+    <form class="form" id="form">
+      <h2 id="dlgTitle">Factura</h2>
+      <div class="notes" id="noteBtns"><button class="btn small" type="button" id="mkNC">Hacer nota de crédito</button><button class="btn small" type="button" id="mkND">Hacer nota de débito</button></div>
+      <div class="assoc" id="assoc" hidden></div>
+      <div class="fields">
+        <label>Va en
+          <select name="direccion"><option value="recibida">Recibida</option><option value="emitida">Emitida</option></select>
+        </label>
+        <label>Grupo<select name="grupo" id="grupoSel"></select></label>
+        <label class="full check"><input type="checkbox" id="applyAll" checked> <span id="applyAllTxt">Usar este grupo para todas las facturas de este proveedor</span></label>
+        <label>Tipo<input name="tipo" list="tiposList"></label>
+        <datalist id="tiposList"><option value="Factura A"><option value="Factura B"><option value="Factura C"><option value="Nota de crédito A"><option value="Nota de crédito B"><option value="Nota de crédito C"><option value="Nota de débito A"><option value="Nota de débito B"><option value="Nota de débito C"><option value="Ticket"><option value="Recibo"><option value="Comprobante de pago"><option value="Otro comprobante"></datalist>
+        <label>Fecha de emisión<input name="fecha" placeholder="dd/mm/aaaa"></label>
+        <label>Punto de venta<input name="puntoVenta"></label>
+        <label>Número<input name="numero"></label>
+        <label>Emisor<input name="emisor"></label>
+        <label>CUIT del emisor<input name="emisorCuit" inputmode="numeric"></label>
+        <label>Cliente<input name="cliente"></label>
+        <label>CUIT del cliente<input name="clienteCuit" inputmode="numeric"></label>
+        <label class="full">Concepto<input name="concepto"></label>
+        <label class="full">Carátula del expediente<textarea name="caratula" rows="2"></textarea></label>
+        <label>Neto gravado ($)<input name="neto" inputmode="decimal"></label>
+        <label>IVA ($)<input name="iva" inputmode="decimal"></label>
+        <label>Importe total ($)<input name="total" inputmode="decimal"></label>
+        <label>CAE<input name="cae"></label>
+        <label>Estado<select name="estado"><option value="pendiente">Pendiente</option><option value="saldada" id="optSaldada">Pagada</option></select></label>
+        <label>Fecha de pago o cobro<input name="fechaPago" placeholder="dd/mm/aaaa"></label>
+      </div>
+      <div class="adj" id="adjBox">
+        <h3>Comprobantes adjuntos</h3>
+        <p class="hint" style="margin:-4px 0 8px">Transferencias, recibos, tickets o cualquier respaldo, en PDF o foto.</p>
+        <div id="adjList"></div>
+        <button class="btn small" type="button" id="adjAdd" style="margin-top:10px">Adjuntar archivo</button>
+        <input type="file" id="adjFile" accept="application/pdf,image/*" multiple hidden>
+      </div>
+      <div class="actions">
+        <button class="btn danger" type="button" id="del">Borrar</button>
+        <span class="spacer"></span>
+        <button class="btn" type="button" data-close>Cerrar</button>
+        <button class="btn" type="button" id="printOne" hidden>Imprimir o guardar PDF</button>
+        <button class="btn primary" type="button" id="saveFicha">Guardar cambios</button>
+      </div>
+    </form>
+    <div class="preview" id="preview"></div>
+  </div>
+</dialog>
+
+<!-- Grupos -->
+<dialog id="catDlg" class="narrow">
+  <div class="pad">
+    <h2>Grupos</h2>
+    <p class="hint">Usalos para separar gastos o ingresos, por ejemplo honorarios de abogados o pago de comisiones. Si borrás un grupo, sus facturas quedan sin grupo.</p>
+    <div class="catlist" id="catList"></div>
+    <div class="newcat"><input id="newCat" placeholder="Nombre del grupo nuevo"><button class="btn primary" id="addCat">Agregar</button></div>
+    <div class="actions"><span class="spacer"></span><button class="btn" type="button" data-close>Listo</button></div>
+  </div>
+</dialog>
+
+<!-- Emitir factura -->
+<dialog id="emDlg">
+  <form class="pad" id="emForm" novalidate>
+    <h2 id="emTitle">Emitir factura</h2>
+    <p class="hint" id="emHint">Cargá el cliente y los renglones: el neto gravado, el IVA y el total se calculan solos. La factura queda en Emitidas y la podés imprimir o guardar en PDF. Es un comprobante interno sin CAE: para que tenga validez fiscal hay que emitirla también en ARCA.</p>
+    <div class="fields">
+      <label id="emNumPv" hidden>Punto de venta de la nota<input name="notaPv" inputmode="numeric"></label>
+      <label id="emNumNro" hidden>Número de la nota<input name="notaNro" inputmode="numeric"></label>
+      <label>Tipo de factura<select name="letra"><option value="A">A</option><option value="B">B</option><option value="C">C</option></select></label>
+      <label>Fecha de emisión<input type="date" name="fecha"></label>
+      <label class="full">Cliente (razón social o nombre)<input name="cliente"></label>
+      <label>CUIT o DNI<input name="clienteCuit" inputmode="numeric"></label>
+      <label>Condición frente al IVA<select name="clienteIva"><option>IVA Responsable Inscripto</option><option>Responsable Monotributo</option><option>IVA Sujeto Exento</option><option>Consumidor Final</option></select></label>
+      <label class="full">Domicilio<input name="clienteDom"></label>
+      <label>Condición de venta<select name="condVenta"><option>Transferencia Bancaria</option><option>Contado</option><option>Cuenta Corriente</option><option>Tarjeta de crédito</option><option>Cheque</option></select></label>
+      <label>Grupo<select name="grupo" id="emGrupo"></select></label>
+      <label class="full">Carátula o referencia (opcional)<input name="caratula"></label>
+    </div>
+    <h3>Detalle</h3>
+    <div class="item itemhead"><span>Producto o servicio</span><span>Cantidad</span><span>Precio unitario</span><span>Alícuota IVA</span><span style="text-align:right">Subtotal</span><span></span></div>
+    <div class="items" id="items"></div>
+    <button type="button" class="btn small" id="addItem">+ Agregar renglón</button>
+    <dl class="calc" id="calc"></dl>
+    <p class="status err" id="emErr"></p>
+    <div class="actions"><span class="spacer"></span><button class="btn" type="button" data-close>Cancelar</button><button class="btn" type="button" id="emSave">Guardar en emitidas</button><button class="btn primary" type="button" id="emPrint">Guardar e imprimir</button></div>
+  </form>
+</dialog>
+
+<div id="printArea"></div>
+
+<!-- Mi empresa -->
+<dialog id="meDlg" class="narrow">
+  <form class="pad" id="meForm">
+    <h2>Tu empresa</h2>
+    <p class="status err" id="meErr"></p>
+    <p class="hint">Con tu CUIT la página decide sola si una factura es recibida (vos sos el cliente) o emitida (vos sos el emisor).</p>
+    <div class="fields">
+      <label class="full">Razón social<input name="nombre" required></label>
+      <label class="full">CUIT (sin guiones)<input name="cuit" inputmode="numeric" required pattern="\d{11}" title="El CUIT tiene 11 números"></label>
+      <label class="full">Domicilio comercial<input name="domicilio"></label>
+      <label>Condición frente al IVA<select name="iva"><option>IVA Responsable Inscripto</option><option>Responsable Monotributo</option><option>IVA Sujeto Exento</option></select></label>
+      <label>Punto de venta<input name="pv" inputmode="numeric" pattern="\d{1,5}" title="Hasta 5 números"></label>
+    </div>
+    <h3>Datos de ejemplo</h3>
+    <p class="hint" style="margin:0 0 10px">Facturas ficticias para mostrar cómo funciona la página. Se cargan solas la primera vez que alguien entra.</p>
+    <div class="actions" style="margin-top:0"><button class="btn small" type="button" id="seedBtn">Cargar facturas de ejemplo</button><button class="btn small danger" type="button" id="wipeBtn">Borrar todas las facturas</button></div>
+    <div class="actions"><span class="spacer"></span><button class="btn" type="button" data-close>Cancelar</button><button class="btn primary" type="button" id="meSave">Guardar</button></div>
+  </form>
+</dialog>
+
+<script>
+(function () {
+  const pdfjsLib = window.pdfjsLib;
+  if (pdfjsLib && pdfjsLib.VerbosityLevel) try { pdfjsLib.setVerbosityLevel && pdfjsLib.setVerbosityLevel(0); } catch (e) {}
+  if (pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+  const $ = s => document.querySelector(s);
+  const money = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS" });
+  const fmt = v => (v == null || isNaN(v)) ? "—" : money.format(v);
+  const MESES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+  const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
+  const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const isNC = f => /cr[eé]dito/i.test(f.tipo || "");
+  const isNota = f => /nota de/i.test(f.tipo || "");
+  const sign = f => isNC(f) ? -1 : 1;
+  const sum = (arr, k) => arr.reduce((a, f) => a + sign(f) * (f[k] || 0), 0);
+  const cap = s => { s = (s || "").toLowerCase(); return s.charAt(0).toUpperCase() + s.slice(1); };
+  const onlyDigits = s => (s || "").replace(/\D/g, "");
+
+  /* ---------- Configuración: empresa, grupos y reglas (localStorage) ---------- */
+  const DEFAULT_CFG = {
+    empresa: { nombre: "Lempriere Argentina", cuit: "33716680989", domicilio: "", iva: "IVA Responsable Inscripto", pv: "00001" },
+    grupos: [
+      { id: "g1", nombre: "Honorarios abogado" },
+      { id: "g2", nombre: "Honorarios contador" },
+      { id: "g3", nombre: "Pago de comisiones" }
+    ],
+    reglas: {} // CUIT de la contraparte -> id de grupo
+  };
+  let cfg;
+  try { cfg = JSON.parse(localStorage.getItem("archivo-facturas-cfg")) || null; } catch (e) { cfg = null; }
+  if (!cfg) cfg = JSON.parse(JSON.stringify(DEFAULT_CFG));
+  if (!cfg.empresa.nombre || /fintech/i.test(cfg.empresa.nombre)) cfg.empresa.nombre = "Lempriere Argentina";
+  cfg.empresa = { ...DEFAULT_CFG.empresa, ...cfg.empresa };
+  function saveCfg() { try { localStorage.setItem("archivo-facturas-cfg", JSON.stringify(cfg)); } catch (e) {} }
+  const grupoNombre = id => (cfg.grupos.find(g => g.id === id) || {}).nombre || "";
+
+  /* ---------- Facturas (IndexedDB, con respaldo en memoria) ---------- */
+  let db = null; const memory = new Map();
+  function openDB() {
+    return new Promise(res => {
+      try {
+        const req = indexedDB.open("archivo-facturas", 1);
+        req.onupgradeneeded = () => req.result.createObjectStore("facturas", { keyPath: "id" });
+        req.onsuccess = () => { db = req.result; res(); };
+        req.onerror = () => res();
+      } catch (e) { res(); }
+    });
+  }
+  function tx(mode, fn) {
+    return new Promise((res, rej) => {
+      try { const t = db.transaction("facturas", mode); const r = fn(t.objectStore("facturas")); t.oncomplete = () => res(r && r.result); t.onerror = () => rej(t.error); }
+      catch (e) { rej(e); }
+    });
+  }
+  async function getAll() {
+    let list = [...memory.values()];
+    if (db) { try { list = (await tx("readonly", st => st.getAll())) || []; } catch (e) {} }
+    list.forEach(f => { if (!f.direccion) f.direccion = autoDir(f) || "recibida"; });
+    return list;
+  }
+  async function put(rec) { memory.set(rec.id, rec); if (db) { try { await tx("readwrite", st => st.put(rec)); } catch (e) {} } }
+  async function putMany(recs) {
+    recs.forEach(r => memory.set(r.id, r));
+    if (db) { try { await tx("readwrite", st => { recs.forEach(r => st.put(r)); }); } catch (e) {} }
+  }
+  async function removeMany(ids) {
+    ids.forEach(id => memory.delete(id));
+    if (db) { try { await tx("readwrite", st => { ids.forEach(id => st.delete(id)); }); } catch (e) {} }
+  }
+  async function remove(id) { memory.delete(id); if (db) { try { await tx("readwrite", st => st.delete(id)); } catch (e) {} } }
+
+  function autoDir(f) {
+    const mine = onlyDigits(cfg.empresa.cuit);
+    if (mine && onlyDigits(f.emisorCuit) === mine) return "emitida";
+    if (mine && onlyDigits(f.clienteCuit) === mine) return "recibida";
+    return "";
+  }
+  const contraCuit = f => f.direccion === "emitida" ? f.clienteCuit : f.emisorCuit;
+  const contraNombre = f => f.direccion === "emitida" ? f.cliente : f.emisor;
+
+  /* ---------- Lectura de facturas ARCA ---------- */
+  async function parseInvoice(data) {
+    const pdf = await pdfjsLib.getDocument({ data, verbosity: 0 }).promise;
+    const page = await pdf.getPage(1);
+    const tc = await page.getTextContent();
+    const items = tc.items.filter(i => i.str && i.str.trim()).map(i => ({ s: i.str.trim(), x: i.transform[4], y: i.transform[5] }));
+    const lines = [];
+    for (const it of [...items].sort((a, b) => b.y - a.y || a.x - b.x)) {
+      let ln = lines.find(l => Math.abs(l.y - it.y) < 3);
+      if (!ln) { ln = { y: it.y, items: [] }; lines.push(ln); }
+      ln.items.push(it);
+    }
+    lines.forEach(l => { l.items.sort((a, b) => a.x - b.x); l.text = l.items.map(i => i.s).join(" "); });
+    lines.sort((a, b) => b.y - a.y);
+    const all = lines.map(l => l.text).join("\n");
+    const m = (re, src = all) => { const r = src.match(re); return r ? r[1].trim() : ""; };
+    const num = s => s ? parseFloat(s.replace(/\./g, "").replace(",", ".")) : null;
+
+    const cod = m(/COD\.\s*(\d{2,3})/);
+    const tipos = { "01": "Factura A", "02": "Nota de débito A", "03": "Nota de crédito A", "06": "Factura B", "07": "Nota de débito B", "08": "Nota de crédito B", "11": "Factura C", "12": "Nota de débito C", "13": "Nota de crédito C", "51": "Factura M" };
+    const clientLine = lines.find(l => /Apellido y Nombre/i.test(l.text));
+    const cuits = [...all.matchAll(/CUIT:\s*(\d{11})/g)].map(r => r[1]);
+    const clienteCuit = clientLine ? m(/CUIT:\s*(\d{11})/, clientLine.text) : "";
+    const emisorLine = lines.find(l => /^Raz[oó]n Social:/i.test(l.text));
+    const hdr = items.find(i => /Producto \/ Servicio/.test(i.s));
+    const cant = items.find(i => /^Cantidad$/.test(i.s));
+    const bottom = items.filter(i => /Importe Otros Tributos/.test(i.s)).reduce((a, i) => Math.max(a, i.y), -Infinity);
+    let desc = "";
+    if (hdr && cant) desc = items.filter(i => i.y < hdr.y - 2 && i.y > bottom && i.x >= hdr.x - 15 && i.x < cant.x - 5).sort((a, b) => b.y - a.y || a.x - b.x).map(i => i.s).join(" ");
+    const caratula = m(/["“]([^"”]+)["”]/, desc);
+    const concepto = desc.replace(/AUTOS\s+CARATULADOS[\s\S]*$/i, "").replace(/["“][^"”]*["”]/, "").trim() || desc;
+    const ivaHits = [...all.matchAll(/IVA [\d.]+%:\s*\$\s*([\d.,]+)/g)];
+    return {
+      tipo: tipos[cod] || (cod ? "Comprobante cód. " + cod : "Factura"),
+      puntoVenta: m(/Punto de Venta:\s*(\d+)/),
+      numero: m(/Comp\. Nro:\s*(\d+)/),
+      fecha: m(/Fecha de Emisi[oó]n:\s*(\d{2}\/\d{2}\/\d{4})/),
+      emisor: emisorLine ? m(/^Raz[oó]n Social:\s*(.+?)(?:\s+Fecha de Emisi|$)/i, emisorLine.text) : "",
+      emisorCuit: cuits.find(c => c !== clienteCuit) || "",
+      cliente: clientLine ? m(/Raz[oó]n Social:\s*(.+)$/i, clientLine.text) : "",
+      clienteCuit,
+      concepto: cap(concepto), caratula,
+      neto: num(m(/Importe Neto Gravado:\s*\$\s*([\d.,]+)/)) ?? num(m(/Subtotal:\s*\$\s*([\d.,]+)/)),
+      iva: ivaHits.length ? ivaHits.reduce((a, r) => a + num(r[1]), 0) : null,
+      total: num(m(/Importe Total:\s*\$\s*([\d.,]+)/)),
+      cae: m(/\b(\d{14})\b/)
+    };
+  }
+  const keyOf = f => [f.tipo, f.puntoVenta, f.numero, onlyDigits(f.emisorCuit)].join("|");
+  const isFiscal = f => /factura|nota de/i.test(f.tipo || "");
+  const needsReview = f => !f.fecha || f.total == null || (isFiscal(f) && !f.numero);
+
+  /* ---------- Estado de la vista ---------- */
+  const viewFromHash = () => ({ "#emitidas": "emitida", "#recibidas": "recibida", "#resumen": "resumen" })[location.hash] || "inicio";
+  let view = viewFromHash();
+  let dir = view === "emitida" ? "emitida" : "recibida";
+  let filtroGrupo = "todos";
+
+  /* ---------- Carga de archivos ---------- */
+  const status = $("#status");
+  const say = (msg, err) => { status.textContent = msg; status.classList.toggle("err", !!err); };
+
+  async function handleFiles(files) {
+    const isImg = f => /^image\//.test(f.type) || /\.(jpe?g|png|webp|gif|heic)$/i.test(f.name);
+    const pdfs = [...files].filter(f => f.type === "application/pdf" || /\.pdf$/i.test(f.name) || isImg(f));
+    if (view === "inicio" || view === "resumen") setView(dir);
+    if (!pdfs.length) { say("No encontré archivos que se puedan guardar. Elegí PDF o fotos (JPG, PNG).", true); return; }
+    const existing = new Set((await getAll()).map(keyOf));
+    let rec = 0, emi = 0, dup = 0, otros = 0, lastOtro = null; const failed = [];
+    const saveOtro = async (file, extra) => {
+      const f = { id: uid(), archivo: file.name, cargada: Date.now(), direccion: dir, tipo: isImg(file) ? "Ticket" : "Comprobante de pago",
+        concepto: file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " "), fecha: "", total: null, estado: "saldada", grupo: "", ...extra };
+      await put(f); otros++; lastOtro = f.id;
+    };
+    for (const [i, file] of pdfs.entries()) {
+      say(`Leyendo ${i + 1} de ${pdfs.length}: ${file.name}`);
+      try {
+        if (isImg(file)) {
+          if (file.size > 15e6) { failed.push(file.name + " (muy pesado)"); continue; }
+          await saveOtro(file, { imagen: await readDataURL(file) }); continue;
+        }
+        const buf = await file.arrayBuffer();
+        if (!pdfjsLib) { await saveOtro(file, { pdf: buf }); continue; }
+        let data = null;
+        try { data = await parseInvoice(new Uint8Array(buf.slice(0))); } catch (e) { data = null; }
+        if (!data || (!data.numero && data.total == null)) { await saveOtro(file, { pdf: buf, ...(data && data.fecha ? { fecha: data.fecha } : {}) }); continue; }
+        const k = keyOf(data);
+        if (data.numero && existing.has(k)) { dup++; continue; }
+        existing.add(k);
+        const f = { id: uid(), archivo: file.name, cargada: Date.now(), pdf: buf, estado: "pendiente", ...data };
+        f.direccion = autoDir(f) || dir;
+        const regla = cfg.reglas[onlyDigits(contraCuit(f))];
+        f.grupo = regla && grupoNombre(regla) ? regla : "";
+        await put(f);
+        f.direccion === "emitida" ? emi++ : rec++;
+      } catch (e) { failed.push(file.name); }
+    }
+    const parts = [];
+    if (rec) parts.push(rec === 1 ? "1 factura guardada en recibidas." : `${rec} facturas guardadas en recibidas.`);
+    if (emi) parts.push(emi === 1 ? "1 factura guardada en emitidas." : `${emi} facturas guardadas en emitidas.`);
+    if (otros) parts.push(otros === 1 ? "1 comprobante guardado: completá sus datos." : `${otros} comprobantes guardados: completá sus datos (están marcados con “Revisar datos”).`);
+    if (!rec && !emi && !otros) parts.push("No se guardaron facturas nuevas.");
+    if (dup) parts.push(dup === 1 ? "1 ya estaba guardada." : `${dup} ya estaban guardadas.`);
+    if (failed.length) parts.push(`No se pudo leer: ${failed.join(", ")}.`);
+    say(parts.join(" "), failed.length && !rec && !emi && !otros);
+    if (!rec && emi) setDir("emitida"); else if (rec) setDir("recibida"); else render();
+    if (otros === 1 && !rec && !emi) openDetail(lastOtro);
+  }
+  const readDataURL = file => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
+  const fileInput = $("#file"), drop = $("#drop");
+  $("#pick").onclick = () => fileInput.click();
+  fileInput.onchange = () => { handleFiles(fileInput.files); fileInput.value = ""; };
+  ["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", e => handleFiles(e.dataTransfer.files));
+
+  /* ---------- Pestañas ---------- */
+  function setView(v) {
+    view = v;
+    if (v === "recibida" || v === "emitida") { if (v !== dir) filtroGrupo = "todos"; dir = v; }
+    const h = { emitida: "#emitidas", recibida: "#recibidas", resumen: "#resumen" }[v] || "#inicio";
+    if (location.hash !== h) { try { history.pushState(null, "", h); } catch (e) {} }
+    $("#home").hidden = v !== "inicio";
+    $("#app").hidden = v === "inicio";
+    $("#listView").hidden = v === "resumen";
+    $("#resumen").hidden = v !== "resumen";
+    window.scrollTo(0, 0);
+    render();
+  }
+  const setDir = d => setView(d);
+  document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => setDir(b.dataset.dir));
+  document.querySelectorAll("[data-go]").forEach(b => b.onclick = () => setView(b.dataset.go));
+  $("#goHome").onclick = () => setView("inicio");
+  $("#homeUpload").onclick = () => fileInput.click();
+  window.addEventListener("popstate", () => setView(viewFromHash()));
+  window.addEventListener("hashchange", () => { if (viewFromHash() !== view) setView(viewFromHash()); });
+
+  /* ---------- Listado ---------- */
+  const toDate = s => { const p = (s || "").split("/"); return p.length === 3 ? new Date(+p[2], p[1] - 1, +p[0]) : null; };
+  function groupKey(f, by) {
+    if (by === "mes") { const d = toDate(f.fecha); return d ? { k: d.getFullYear() * 100 + d.getMonth(), label: cap(MESES[d.getMonth()]) + " " + d.getFullYear() } : { k: -1, label: "Sin fecha" }; }
+    if (by === "anio") { const d = toDate(f.fecha); return d ? { k: d.getFullYear(), label: String(d.getFullYear()) } : { k: -1, label: "Sin fecha" }; }
+    if (by === "grupo") { const n = grupoNombre(f.grupo); return { k: n || "~~", label: n || "Sin grupo" }; }
+    if (by === "contra") { const n = contraNombre(f); return { k: n || "~~", label: n || "Sin nombre" }; }
+    return { k: 0, label: "Todas las facturas" };
+  }
+
+  async function render() {
+    const everything = await getAll();
+    const recib = everything.filter(f => f.direccion !== "emitida"), emit = everything.filter(f => f.direccion === "emitida");
+    const inTab = dir === "emitida" ? emit : recib;
+    $("#nRec").textContent = recib.length; $("#nEmi").textContent = emit.length;
+
+    $("#meBtn").innerHTML = `Tu empresa: <b>${esc(cfg.empresa.nombre)}</b>`;
+    document.querySelectorAll(".tabs button").forEach(b => {
+      const on = view === "resumen" ? b.dataset.dir === "resumen" : b.dataset.dir === dir; b.setAttribute("aria-selected", on);
+      const sp = b.querySelector("span"); if (sp) sp.textContent = String((b.dataset.dir === "emitida" ? emit : recib).length);
+    });
+    const yrs = [...new Set(everything.map(f => { const d = toDate(f.fecha); return d ? d.getFullYear() : null; }).filter(Boolean))].sort();
+    $("#nYears").textContent = yrs.length > 1 ? yrs[0] + "–" + yrs[yrs.length - 1] : (yrs[0] || "—");
+    if (view === "resumen") { renderResumen(everything); return; }
+    $("#tabhint").textContent = dir === "emitida" ? "Facturas que " + cfg.empresa.nombre + " les hizo a sus clientes." : "Facturas que le mandaron a " + cfg.empresa.nombre + " sus proveedores.";
+    $("#groupBy").querySelector('[value="contra"]').textContent = dir === "emitida" ? "Cliente" : "Proveedor";
+    $("#applyAllTxt").textContent = dir === "emitida" ? "Usar este grupo para todas las facturas de este cliente" : "Usar este grupo para todas las facturas de este proveedor";
+
+    // chips de grupos
+    const count = id => inTab.filter(f => id === "todos" ? true : id === "sin" ? !grupoNombre(f.grupo) : f.grupo === id).length;
+    if (filtroGrupo !== "todos" && filtroGrupo !== "sin" && !grupoNombre(filtroGrupo)) filtroGrupo = "todos";
+    const chip = (id, label) => `<button class="chip" data-g="${esc(id)}" aria-pressed="${filtroGrupo === id}">${esc(label)} (${count(id)})</button>`;
+    const usedAnywhere = id => everything.some(f => f.grupo === id);
+    $("#chips").innerHTML = chip("todos", "Todas") + cfg.grupos.filter(g => count(g.id) > 0 || !usedAnywhere(g.id) || filtroGrupo === g.id).map(g => chip(g.id, g.nombre)).join("") + chip("sin", "Sin grupo") +
+      `<button class="chip add" id="newGroupChip">+ Nuevo grupo</button><button class="chip link" id="editGroups">Editar grupos</button>`;
+    $("#chips").querySelectorAll("[data-g]").forEach(b => b.onclick = () => { filtroGrupo = b.dataset.g; render(); });
+    $("#newGroupChip").onclick = () => openCats(true);
+    $("#editGroups").onclick = () => openCats(false);
+
+    const q = $("#q").value.trim().toLowerCase();
+    const isoToDate = v => { if (!v) return null; const [y, mo, da] = v.split("-").map(Number); return new Date(y, mo - 1, da); };
+    const dDesde = isoToDate($("#dDesde").value), dHasta = isoToDate($("#dHasta").value);
+    const by = $("#groupBy").value;
+    const estadoF = $("#estadoF").value;
+    const list = inTab
+      .filter(f => filtroGrupo === "todos" ? true : filtroGrupo === "sin" ? !grupoNombre(f.grupo) : f.grupo === filtroGrupo)
+      .filter(f => !estadoF || (estadoF === "pendiente" ? (f.estado === "pendiente" && !isNC(f)) : f.estado !== "pendiente"))
+      .filter(f => {
+        const d = toDate(f.fecha);
+        if (dDesde && (!d || d < dDesde)) return false;
+        if (dHasta && (!d || d > dHasta)) return false;
+        if (!q) return true;
+        const fechaTxt = d ? [f.fecha, MESES[d.getMonth()] + " " + d.getFullYear(), String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear(), (d.getMonth() + 1) + "/" + d.getFullYear()].join(" ") : "";
+        const hay = [f.caratula, f.cliente, f.emisor, f.concepto, f.numero, f.puntoVenta + "-" + f.numero, f.cae, f.archivo, f.clienteCuit, f.emisorCuit, grupoNombre(f.grupo), fechaTxt].join(" ").toLowerCase();
+        return q.split(/\s+/).every(w => hay.includes(w));
+      });
+
+    $("#totals").innerHTML = list.length ? `
+      <div><dt>Comprobantes</dt><dd>${list.length}</dd></div>
+      <div><dt>Neto</dt><dd>${fmt(sum(list, "neto"))}</dd></div>
+      <div><dt>IVA</dt><dd>${fmt(sum(list, "iva"))}</dd></div>
+      <div class="big"><dt>${dir === "emitida" ? "Total facturado" : "Total recibido"}</dt><dd>${fmt(sum(list, "total"))}</dd></div>
+      <div><dt>${dir === "emitida" ? "Pendiente de cobro" : "Pendiente de pago"}</dt><dd>${fmt(sum(list.filter(f => f.estado === "pendiente" && !isNC(f)), "total"))}</dd></div>` : "";
+
+    const main = $("#list");
+    if (!inTab.length) { main.innerHTML = `<div class="empty"><strong>Todavía no hay facturas ${dir === "emitida" ? "emitidas" : "recibidas"}</strong>Subí uno o varios PDF y se van a ubicar acá si ${dir === "emitida" ? "el emisor" : "el cliente"} es ${esc(cfg.empresa.nombre)}.</div>`; return; }
+    if (!list.length) { main.innerHTML = `<div class="empty"><strong>Ninguna factura coincide con el filtro</strong>Probá con otro grupo u otra búsqueda.</div>`; return; }
+
+    const groups = new Map();
+    for (const f of list) { const g = groupKey(f, by); if (!groups.has(g.k)) groups.set(g.k, { label: g.label, items: [] }); groups.get(g.k).items.push(f); }
+    const ordered = [...groups.entries()].sort((a, b) => (by === "mes" || by === "anio") ? b[0] - a[0] : String(a[0]).localeCompare(String(b[0]), "es"));
+    const contraHdr = dir === "emitida" ? "para" : "de";
+
+    main.innerHTML = ordered.map(([, g]) => {
+      g.items.sort((a, b) => (toDate(b.fecha) || 0) - (toDate(a.fecha) || 0) || (b.numero || "").localeCompare(a.numero || ""));
+      return `<section class="group">
+        <div class="tab">${esc(g.label)} <span>${g.items.length} ${g.items.length === 1 ? "factura" : "facturas"}</span></div>
+        <div class="folder">
+          <div class="head"><div>Comprobante</div><div>Fecha</div><div>Detalle</div><div class="money">Neto</div><div class="money">Total</div></div>
+          ${g.items.map(f => `<button class="row" data-id="${esc(f.id)}">
+            <div class="num">${esc(f.puntoVenta || "—")}-${esc(f.numero || "—")}</div>
+            <div class="fecha">${esc(f.fecha || "—")}</div>
+            <div class="desc"><b>${esc(f.caratula || f.concepto || f.archivo || "Sin detalle")}</b><small>${esc(f.tipo)} ${contraHdr} ${esc(contraNombre(f) || "—")}${f.caratula && f.concepto ? ", " + esc(f.concepto).toLowerCase() : ""}</small><br>${grupoNombre(f.grupo) && by !== "grupo" ? `<span class="pill">${esc(grupoNombre(f.grupo))}</span>` : ""}${needsReview(f) ? '<span class="pill warn">Revisar datos</span>' : ""}${isNota(f) ? `<span class="pill ${isNC(f) ? "nc" : "nd"}">${isNC(f) ? "Nota de crédito" : "Nota de débito"}${f.assocLabel ? " de " + esc(f.assocLabel) : ""}</span>` : ""}${f.estado === "pendiente" && !isNC(f) ? `<span class="pill pend">${dir === "emitida" ? "A cobrar" : "A pagar"}</span>` : ""}${(f.adjuntos || []).length ? `<span class="pill att">${f.adjuntos.length} ${f.adjuntos.length === 1 ? "adjunto" : "adjuntos"}</span>` : ""}${f.ejemplo ? '<span class="pill">Ejemplo</span>' : f.generada ? '<span class="pill warn">Sin CAE</span>' : ""}</div>
+            <div class="money neto${isNC(f) ? " neg" : ""}">${isNC(f) ? "−" : ""}${fmt(f.neto)}</div>
+            <div class="money total${isNC(f) ? " neg" : ""}"><b>${isNC(f) ? "−" : ""}${fmt(f.total)}</b></div>
+          </button>`).join("")}
+          <div class="foot"><span>Neto <b>${fmt(sum(g.items, "neto"))}</b></span><span>Total <b>${fmt(sum(g.items, "total"))}</b></span></div>
+        </div>
+      </section>`;
+    }).join("");
+    main.querySelectorAll(".row").forEach(r => r.onclick = () => openDetail(r.dataset.id));
+  }
+  $("#q").oninput = render;
+  $("#estadoF").onchange = render;
+  $("#dDesde").onchange = render; $("#dHasta").onchange = render;
+  $("#clearF").onclick = () => { $("#estadoF").value = ""; $("#q").value = ""; $("#dDesde").value = ""; $("#dHasta").value = ""; filtroGrupo = "todos"; render(); };
+  $("#groupBy").onchange = render;
+
+  /* ---------- Botón de borrar en dos pasos (no depende de confirm) ---------- */
+  function armDelete(btn, armedLabel, action) {
+    if (btn.dataset.armed === "1") { btn.dataset.armed = ""; action(); return; }
+    const orig = btn.textContent;
+    btn.dataset.armed = "1"; btn.classList.add("armed"); btn.textContent = armedLabel;
+    setTimeout(() => { if (btn.isConnected && btn.dataset.armed === "1") { btn.dataset.armed = ""; btn.classList.remove("armed"); btn.textContent = orig; } }, 4000);
+  }
+
+  /* Ningún formulario se envía: todo se guarda con los botones */
+  document.querySelectorAll("form").forEach(f => f.addEventListener("submit", e => e.preventDefault()));
+
+  /* ---------- Cerrar diálogos ---------- */
+  document.querySelectorAll("[data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
+
+  /* ---------- Ficha de factura ---------- */
+  const dlg = $("#dlg"), form = $("#form"), preview = $("#preview");
+  let current = null;
+  const moneyFields = ["neto", "iva", "total"];
+  const toInput = v => v == null ? "" : String(v).replace(".", ",");
+  const fromInput = s => { s = (s || "").trim(); if (!s) return null; const n = parseFloat(s.replace(/\./g, "").replace(",", ".")); return isNaN(n) ? null : n; };
+
+  function fillGrupoSel(sel) { $("#grupoSel").innerHTML = `<option value="">Sin grupo</option>` + cfg.grupos.map(g => `<option value="${esc(g.id)}">${esc(g.nombre)}</option>`).join(""); $("#grupoSel").value = grupoNombre(sel) ? sel : ""; }
+  function fillForm(f) {
+    for (const el of form.elements) { if (!el.name || el.name === "grupo") continue; el.value = moneyFields.includes(el.name) ? toInput(f[el.name]) : (f[el.name] || ""); }
+    form.estado.value = f.estado === "saldada" ? "saldada" : "pendiente";
+    fillGrupoSel(f.grupo || "");
+  }
+  async function openDetail(id) {
+    current = (await getAll()).find(f => f.id === id) || null;
+    fillForm(current || {});
+    $("#dlgTitle").textContent = current ? (isFiscal(current) ? `${current.tipo} ${current.puntoVenta || ""}-${current.numero || ""}` : `${current.tipo || "Comprobante"}${current.archivo ? ": " + current.archivo : ""}`) : "Nueva factura";
+    $("#optSaldada").textContent = (current && current.direccion === "emitida") ? "Cobrada" : "Pagada";
+    $("#adjBox").hidden = !current; drawAdj();
+    $("#del").hidden = !current;
+    $("#printOne").hidden = !(current && (current.generada || current.items));
+    $("#noteBtns").hidden = !current || isNota(current) || !isFiscal(current);
+    if (current) {
+      const rec = current.direccion === "recibida";
+      $("#mkNC").textContent = rec ? "Registrar nota de crédito recibida" : "Hacer nota de crédito";
+      $("#mkND").textContent = rec ? "Registrar nota de débito recibida" : "Hacer nota de débito";
+    }
+    await drawAssoc();
+    dlg.showModal();
+    showMain();
+  }
+  function showMain() {
+    if (current && current.pdf) renderPreview(current.pdf);
+    else if (current && current.imagen) preview.innerHTML = `<img src="${current.imagen}" alt="Comprobante ${esc(current.archivo || "")}">`;
+    else if (current && current.items) preview.innerHTML = `<div class="inv-wrap">${invoiceHTML(current)}</div>`;
+    else renderPreview(null);
+  }
+  function drawAdj() {
+    const box = $("#adjList"); const list = (current && current.adjuntos) || [];
+    box.innerHTML = list.length ? list.map(a => `<div class="adjrow"><span>${esc(a.nombre)}</span><button class="btn small" type="button" data-ver="${esc(a.id)}">Ver</button><button class="btn small danger" type="button" data-quitar="${esc(a.id)}">Quitar</button></div>`).join("") : `<p class="hint" style="margin:0">Todavía no hay archivos adjuntos.</p>`;
+    box.querySelectorAll("[data-ver]").forEach(b => b.onclick = () => showAttachment(list.find(a => a.id === b.dataset.ver)));
+    box.querySelectorAll("[data-quitar]").forEach(b => b.onclick = () => armDelete(b, "¿Seguro?", async () => {
+      current.adjuntos = list.filter(a => a.id !== b.dataset.quitar); await put(current); drawAdj(); showMain(); render();
+    }));
+  }
+  async function showAttachment(a) {
+    if (!a) return;
+    if (/pdf/.test(a.mime)) await renderPreview(a.data); else preview.innerHTML = `<img src="${a.data}" alt="${esc(a.nombre)}">`;
+    preview.insertAdjacentHTML("afterbegin", `<button class="btn small" type="button" id="backMain">← Volver al comprobante</button>`);
+    $("#backMain").onclick = showMain;
+  }
+  $("#adjAdd").onclick = () => $("#adjFile").click();
+  $("#adjFile").onchange = async () => {
+    const files = [...$("#adjFile").files]; $("#adjFile").value = "";
+    if (!current || !files.length) return;
+    current.adjuntos = current.adjuntos || [];
+    let n = 0;
+    for (const file of files) {
+      if (file.size > 15e6) { say(`${file.name} pesa más de 15 MB y no se adjuntó.`, true); continue; }
+      const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+      current.adjuntos.push({ id: uid(), nombre: file.name, mime: isPdf ? "application/pdf" : (file.type || "image/jpeg"), data: isPdf ? await file.arrayBuffer() : await readDataURL(file) });
+      n++;
+    }
+    if (n) { await put(current); drawAdj(); showAttachment(current.adjuntos[current.adjuntos.length - 1]); render(); }
+  };
+  async function drawAssoc() {
+    const box = $("#assoc"); box.hidden = true; box.innerHTML = "";
+    if (!current) return;
+    const all = await getAll();
+    if (isNota(current)) {
+      const ref = all.find(f => f.id === current.assocId);
+      if (ref) { box.hidden = false; box.innerHTML = `<p>Comprobante asociado</p><button type="button" data-open="${esc(ref.id)}">${esc(ref.tipo)} ${esc(ref.puntoVenta)}-${esc(ref.numero)} del ${esc(ref.fecha)}, ${fmt(ref.total)}</button>`; }
+    } else {
+      const notas = all.filter(f => f.assocId === current.id);
+      if (notas.length) {
+        box.hidden = false;
+        box.innerHTML = `<p>Notas asociadas a esta factura</p>` + notas.map(n => `<button type="button" data-open="${esc(n.id)}">${esc(n.tipo)} ${esc(n.puntoVenta)}-${esc(n.numero)} del ${esc(n.fecha)}: ${isNC(n) ? "−" : "+"}${fmt(n.total)}</button>`).join("") + `<div class="saldo">Saldo de la factura: ${fmt(saldoOf(current, all))}</div>`;
+      }
+    }
+    box.querySelectorAll("[data-open]").forEach(b => b.onclick = () => { dlg.close(); openDetail(b.dataset.open); });
+  }
+  const saldoOf = (ref, all) => r2((ref.total || 0) + all.filter(n => n.assocId === ref.id).reduce((a, n) => a + sign(n) * (n.total || 0), 0));
+  $("#mkNC").onclick = () => { const ref = current; dlg.close(); openEmit({ kind: "NC", ref }); };
+  $("#mkND").onclick = () => { const ref = current; dlg.close(); openEmit({ kind: "ND", ref }); };
+  $("#printOne").onclick = () => { if (current) { dlg.close(); printInvoice(current); } };
+  async function renderPreview(buf) {
+    preview.innerHTML = "";
+    if (!buf) { preview.innerHTML = "<p>Este comprobante se cargó a mano, así que no tiene archivo para mostrar.</p>"; return; }
+    if (!pdfjsLib) { preview.innerHTML = "<p>No se pudo cargar el lector de PDF. Revisá la conexión y recargá la página.</p>"; return; }
+    try {
+      const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf.slice(0)), verbosity: 0 }).promise;
+      const page = await pdf.getPage(1);
+      const vp0 = page.getViewport({ scale: 1 });
+      const w = Math.max(300, preview.clientWidth - 32);
+      const vp = page.getViewport({ scale: (w / vp0.width) * (window.devicePixelRatio || 1) });
+      const c = document.createElement("canvas");
+      c.width = vp.width; c.height = vp.height; c.style.width = w + "px";
+      preview.appendChild(c);
+      await page.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
+    } catch (e) { preview.innerHTML = "<p>No se pudo mostrar el PDF de esta factura.</p>"; }
+  }
+  async function saveFicha() {
+    const rec = current ? { ...current } : { id: uid(), archivo: "Carga manual", cargada: Date.now() };
+    for (const el of form.elements) { if (!el.name) continue; rec[el.name] = moneyFields.includes(el.name) ? fromInput(el.value) : el.value.trim(); }
+    await put(rec);
+    let extra = 0;
+    const cc = onlyDigits(contraCuit(rec));
+    if ($("#applyAll").checked && cc) {
+      if (rec.grupo) cfg.reglas[cc] = rec.grupo; else delete cfg.reglas[cc];
+      saveCfg();
+      for (const f of await getAll()) {
+        if (f.id !== rec.id && f.direccion === rec.direccion && onlyDigits(contraCuit(f)) === cc && f.grupo !== rec.grupo) { f.grupo = rec.grupo; await put(f); extra++; }
+      }
+    }
+    dlg.close();
+    say((current ? "Cambios guardados." : "Factura guardada.") + (extra ? ` También se movieron ${extra} ${extra === 1 ? "factura" : "facturas"} de ${contraNombre(rec) || "la misma contraparte"} al mismo grupo.` : ""));
+    if (rec.direccion !== dir) setDir(rec.direccion); else render();
+  }
+  $("#saveFicha").onclick = saveFicha;
+  const delBtn = $("#del");
+  const resetDel = () => { delBtn.dataset.armed = ""; delBtn.classList.remove("armed"); delBtn.textContent = "Borrar"; };
+  dlg.addEventListener("close", resetDel);
+  delBtn.onclick = () => {
+    if (!current) return;
+    armDelete(delBtn, "Tocá otra vez para borrar", async () => {
+      const n = `${current.puntoVenta}-${current.numero}`;
+      await remove(current.id); dlg.close(); say(`Factura ${n} borrada.`); render();
+    });
+  };
+  $("#manual").onclick = () => {
+    $("#printOne").hidden = true; $("#noteBtns").hidden = true; $("#assoc").hidden = true; $("#adjBox").hidden = true;
+    current = null;
+    const isEmit = dir === "emitida";
+    fillForm({ tipo: "Factura A", estado: "pendiente", direccion: dir, grupo: (filtroGrupo !== "todos" && filtroGrupo !== "sin") ? filtroGrupo : "",
+      emisor: isEmit ? cfg.empresa.nombre : "", emisorCuit: isEmit ? cfg.empresa.cuit : "",
+      cliente: isEmit ? "" : cfg.empresa.nombre, clienteCuit: isEmit ? "" : cfg.empresa.cuit });
+    $("#dlgTitle").textContent = "Nueva factura"; $("#del").hidden = true;
+    dlg.showModal(); renderPreview(null);
+  };
+
+  /* ---------- Grupos ---------- */
+  const catDlg = $("#catDlg");
+  function drawCats() {
+    $("#catList").innerHTML = cfg.grupos.length ? cfg.grupos.map(g => `<div><input data-id="${esc(g.id)}" value="${esc(g.nombre)}" aria-label="Nombre del grupo"><button class="btn danger small" data-del="${esc(g.id)}">Borrar</button></div>`).join("") : `<p class="hint" style="margin:0">No hay grupos todavía.</p>`;
+    $("#catList").querySelectorAll("input").forEach(inp => inp.onchange = () => {
+      const g = cfg.grupos.find(x => x.id === inp.dataset.id); const v = inp.value.trim();
+      if (g && v) { g.nombre = v; saveCfg(); render(); } else inp.value = g ? g.nombre : "";
+    });
+    $("#catList").querySelectorAll("[data-del]").forEach(b => b.onclick = () => armDelete(b, "¿Seguro?", async () => {
+      const g = cfg.grupos.find(x => x.id === b.dataset.del); if (!g) return;
+      cfg.grupos = cfg.grupos.filter(x => x.id !== g.id);
+      for (const k in cfg.reglas) if (cfg.reglas[k] === g.id) delete cfg.reglas[k];
+      saveCfg();
+      for (const f of await getAll()) if (f.grupo === g.id) { f.grupo = ""; await put(f); }
+      drawCats(); render();
+    }));
+  }
+  function openCats(focusNew) { drawCats(); catDlg.showModal(); if (focusNew) $("#newCat").focus(); }
+  function addCat() {
+    const v = $("#newCat").value.trim(); if (!v) { $("#newCat").focus(); return; }
+    if (cfg.grupos.some(g => g.nombre.toLowerCase() === v.toLowerCase())) { $("#newCat").select(); return; }
+    cfg.grupos.push({ id: "g" + uid().slice(0, 8), nombre: v }); saveCfg();
+    $("#newCat").value = ""; drawCats(); render();
+  }
+  $("#addCat").onclick = addCat;
+  $("#newCat").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); addCat(); } });
+
+  /* ---------- Mi empresa ---------- */
+  const meDlg = $("#meDlg"), meForm = $("#meForm");
+  $("#meBtn").onclick = () => { for (const k of ["nombre", "cuit", "domicilio", "iva", "pv"]) meForm[k].value = cfg.empresa[k] || ""; meDlg.showModal(); };
+  async function saveMe() {
+    if (!meForm.nombre.value.trim()) { $("#meErr").textContent = "Falta la razón social."; return; }
+    if (onlyDigits(meForm.cuit.value).length !== 11) { $("#meErr").textContent = "El CUIT tiene que tener 11 números."; return; }
+    $("#meErr").textContent = "";
+    cfg.empresa = { nombre: meForm.nombre.value.trim(), cuit: onlyDigits(meForm.cuit.value), domicilio: meForm.domicilio.value.trim(), iva: meForm.iva.value, pv: onlyDigits(meForm.pv.value).padStart(5, "0") || "00001" }; saveCfg();
+    let moved = 0;
+    for (const f of await getAll()) { const d = autoDir(f); if (d && d !== f.direccion) { f.direccion = d; await put(f); moved++; } }
+    meDlg.close(); say("Datos de tu empresa guardados." + (moved ? ` Se reubicaron ${moved} ${moved === 1 ? "factura" : "facturas"}.` : "")); render();
+  }
+  $("#meSave").onclick = saveMe;
+
+  /* ---------- Emitir facturas ---------- */
+  const emDlg = $("#emDlg"), emForm = $("#emForm"), itemsBox = $("#items");
+  const ALICS = [["21", "21%"], ["10.5", "10,5%"], ["27", "27%"], ["5", "5%"], ["2.5", "2,5%"], ["0", "0%"], ["ex", "Exento"]];
+  const r2 = n => Math.round(n * 100) / 100;
+  const nf = new Intl.NumberFormat("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const isoToday = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+  const isoToAr = v => v ? v.split("-").reverse().join("/") : "";
+
+  function addItem(it = {}) {
+    const row = document.createElement("div"); row.className = "item";
+    row.innerHTML = `<input class="d" placeholder="Ej. Honorarios profesionales" aria-label="Producto o servicio">
+      <input class="q" inputmode="decimal" value="1" aria-label="Cantidad">
+      <input class="p" inputmode="decimal" placeholder="0,00" aria-label="Precio unitario">
+      <select class="a" aria-label="Alícuota de IVA">${ALICS.map(([v, l]) => `<option value="${v}">${l}</option>`).join("")}</select>
+      <span class="sub">$ 0,00</span>
+      <button type="button" class="btn small x" aria-label="Quitar renglón">✕</button>`;
+    row.querySelector(".d").value = it.desc || "";
+    if (it.cant != null) row.querySelector(".q").value = toInput(it.cant);
+    if (it.precio != null) row.querySelector(".p").value = toInput(it.precio);
+    row.querySelector(".x").onclick = () => { if (itemsBox.children.length > 1) row.remove(); else { row.querySelector(".d").value = ""; row.querySelector(".p").value = ""; } calc(); };
+    row.addEventListener("input", calc); row.addEventListener("change", calc);
+    itemsBox.appendChild(row);
+  }
+  function readItems() {
+    const letra = emForm.letra.value;
+    return [...itemsBox.children].map(r => {
+      const cant = fromInput(r.querySelector(".q").value) || 0, precio = fromInput(r.querySelector(".p").value) || 0;
+      const alic = letra === "C" ? "0" : r.querySelector(".a").value;
+      return { desc: r.querySelector(".d").value.trim(), cant, precio, alic, subtotal: r2(cant * precio), row: r };
+    }).filter(i => i.desc || i.precio);
+  }
+  function totalsOf(items, letra) {
+    let neto = 0, exento = 0; const ivaDet = {};
+    for (const i of items) {
+      if (letra === "C") { neto += i.subtotal; continue; }
+      if (i.alic === "ex") { exento += i.subtotal; continue; }
+      neto += i.subtotal;
+      const a = parseFloat(i.alic); if (a > 0) ivaDet[i.alic] = r2((ivaDet[i.alic] || 0) + i.subtotal * a / 100);
+    }
+    const iva = r2(Object.values(ivaDet).reduce((a, b) => a + b, 0));
+    return { neto: r2(neto), exento: r2(exento), ivaDet, iva, total: r2(neto + exento + iva) };
+  }
+  function calc() {
+    const letra = emForm.letra.value;
+    itemsBox.querySelectorAll(".a").forEach(sel => sel.disabled = letra === "C");
+    const items = readItems();
+    [...itemsBox.children].forEach(r => { const q = fromInput(r.querySelector(".q").value) || 0, pr = fromInput(r.querySelector(".p").value) || 0; r.querySelector(".sub").textContent = fmt(r2(q * pr)); });
+    const t = totalsOf(items, letra);
+    let html = letra === "C" ? `<dt>Subtotal</dt><dd>${fmt(t.neto)}</dd>` : `<dt>Neto gravado</dt><dd>${fmt(t.neto)}</dd>`;
+    if (t.exento) html += `<dt>Exento</dt><dd>${fmt(t.exento)}</dd>`;
+    for (const [a, v] of Object.entries(t.ivaDet).sort((x, y) => parseFloat(y[0]) - parseFloat(x[0]))) html += `<dt>IVA ${a.replace(".", ",")}%</dt><dd>${fmt(v)}</dd>`;
+    html += `<dt class="tot">Total</dt><dd class="tot">${fmt(t.total)}</dd>`;
+    $("#calc").innerHTML = html;
+  }
+  function suggestLetra() {
+    if (/Monotributo|Exento/.test(cfg.empresa.iva)) emForm.letra.value = "C";
+    else emForm.letra.value = emForm.clienteIva.value === "IVA Responsable Inscripto" ? "A" : "B";
+    calc();
+  }
+  emForm.clienteIva.onchange = suggestLetra;
+  emForm.letra.onchange = calc;
+  $("#addItem").onclick = () => { addItem(); itemsBox.lastElementChild.querySelector(".d").focus(); };
+
+  const COD = { "Factura A": "01", "Nota de débito A": "02", "Nota de crédito A": "03", "Factura B": "06", "Nota de débito B": "07", "Nota de crédito B": "08", "Factura C": "11", "Nota de débito C": "12", "Nota de crédito C": "13" };
+  const tipoDe = (kind, letra) => (kind === "NC" ? "Nota de crédito " : kind === "ND" ? "Nota de débito " : "Factura ") + letra;
+  async function nextNumero(tipo, list) {
+    const pv = cfg.empresa.pv || "00001";
+    const max = (list || await getAll()).filter(f => f.direccion === "emitida" && f.puntoVenta === pv && f.tipo === tipo).reduce((m, f) => Math.max(m, parseInt(f.numero, 10) || 0), 0);
+    return String(max + 1).padStart(8, "0");
+  }
+  let emMode = null;
+  function openEmit(mode) {
+    emMode = mode && mode.ref ? mode : null;
+    emForm.reset(); itemsBox.innerHTML = ""; $("#emErr").textContent = "";
+    emForm.fecha.value = isoToday();
+    $("#emGrupo").innerHTML = `<option value="">Sin grupo</option>` + cfg.grupos.map(g => `<option value="${esc(g.id)}">${esc(g.nombre)}</option>`).join("");
+    const recibidaNote = emMode && emMode.ref.direccion === "recibida";
+    $("#emNumPv").hidden = !recibidaNote; $("#emNumNro").hidden = !recibidaNote;
+    emForm.letra.disabled = !!emMode;
+    for (const k of ["cliente", "clienteCuit", "clienteIva", "clienteDom"]) emForm[k].disabled = !!emMode;
+    if (!emMode) {
+      $("#emTitle").textContent = "Emitir factura";
+      $("#emHint").textContent = "Cargá el cliente y los renglones: el neto gravado, el IVA y el total se calculan solos. La factura queda en Emitidas y la podés imprimir o guardar en PDF. Es un comprobante interno sin CAE: para que tenga validez fiscal hay que emitirla también en ARCA.";
+      addItem(); suggestLetra();
+    } else {
+      const ref = emMode.ref, kindTxt = emMode.kind === "NC" ? "nota de crédito" : "nota de débito";
+      const letra = ref.letra || (ref.tipo || "").trim().slice(-1) || "A";
+      $("#emTitle").textContent = (recibidaNote ? "Registrar " : "Hacer ") + kindTxt + " " + letra;
+      $("#emHint").textContent = (emMode.kind === "NC"
+        ? "Sirve para anular toda la factura o una parte (descuentos, devoluciones, errores). Ya cargamos los renglones de la factura: dejalos para anularla completa o cambiá los importes para una anulación parcial."
+        : "Sirve para sumarle un cargo a la factura (intereses, gastos, diferencias de precio). Cargá el renglón con el importe a sumar.")
+        + ` Queda asociada a ${ref.tipo} ${ref.puntoVenta}-${ref.numero}.`;
+      emForm.letra.value = ["A", "B", "C"].includes(letra) ? letra : "A";
+      if (recibidaNote) { emForm.cliente.value = ref.cliente || cfg.empresa.nombre; emForm.clienteCuit.value = ref.clienteCuit || ""; emForm.notaPv.value = ref.puntoVenta || ""; }
+      else { emForm.cliente.value = ref.cliente || ""; emForm.clienteCuit.value = ref.clienteCuit || ""; emForm.clienteDom.value = ref.clienteDom || ""; if (ref.clienteIva) emForm.clienteIva.value = ref.clienteIva; }
+      emForm.condVenta.value = ref.condicionVenta && [...emForm.condVenta.options].some(o => o.value === ref.condicionVenta) ? ref.condicionVenta : "Transferencia Bancaria";
+      emForm.grupo.value = grupoNombre(ref.grupo) ? ref.grupo : "";
+      emForm.caratula.value = ref.caratula || "";
+      if (emMode.kind === "NC") {
+        const src = ref.items && ref.items.length ? ref.items : [{ desc: ref.concepto || "Anulación", cant: 1, precio: ref.neto || ref.total || 0, alic: ref.iva && ref.neto ? String(Math.round(ref.iva / ref.neto * 1000) / 10).replace(/\.0$/, "") : (letra === "C" ? "0" : "21") }];
+        for (const it of src) {
+          addItem({ desc: "Anulación: " + (it.desc || ""), cant: it.cant, precio: it.precio });
+          const sel = itemsBox.lastElementChild.querySelector(".a"); if ([...sel.options].some(o => o.value === it.alic)) sel.value = it.alic;
+        }
+      } else { addItem({ desc: "Intereses por mora", cant: 1 }); }
+      calc();
+    }
+    emDlg.showModal(); (recibidaNote ? emForm.notaNro : itemsBox.querySelector(".p")).focus();
+  }
+  $("#emitBtn").onclick = () => openEmit();
+  $("#homeEmit").onclick = () => { setView("emitida"); openEmit(); };
+
+  async function saveEmit(action) {
+    const items = readItems();
+    const recibidaNote = emMode && emMode.ref.direccion === "recibida";
+    let err = !emForm.cliente.value.trim() ? "Falta el nombre del cliente." : !items.length ? "Agregá al menos un renglón con descripción y precio." : items.some(i => !i.desc) ? "Hay un renglón sin descripción." : items.some(i => !(i.precio > 0) || !(i.cant > 0)) ? "Revisá cantidades y precios: tienen que ser mayores a cero." : "";
+    if (!err && recibidaNote && !onlyDigits(emForm.notaNro.value)) err = "Falta el número de la nota que te mandó el proveedor.";
+    const letra = emForm.letra.value, t = totalsOf(items, letra);
+    const all = await getAll();
+    if (!err && emMode && emMode.kind === "NC") {
+      const saldo = saldoOf(emMode.ref, all);
+      if (t.total > saldo + 0.01) err = `La nota de crédito (${fmt(t.total)}) supera el saldo de la factura (${fmt(saldo)}).`;
+    }
+    if (err) { $("#emErr").textContent = err; return; }
+    const tipo = tipoDe(emMode ? emMode.kind : "F", letra);
+    const ref = emMode ? emMode.ref : null;
+    const base = {
+      id: uid(), cargada: Date.now(), tipo, letra,
+      fecha: isoToAr(emForm.fecha.value) || isoToAr(isoToday()),
+      condicionVenta: emForm.condVenta.value, grupo: emForm.grupo.value, caratula: emForm.caratula.value.trim(),
+      concepto: cap(items[0].desc), items: items.map(({ row, ...i }) => i),
+      neto: t.neto, exento: t.exento, ivaDet: t.ivaDet, iva: t.iva, total: t.total, cae: "", estado: "pendiente"
+    };
+    if (ref) Object.assign(base, { assocId: ref.id, assocLabel: `${ref.tipo} ${ref.puntoVenta}-${ref.numero}`, assocFecha: ref.fecha });
+    let f;
+    if (recibidaNote) {
+      f = { ...base, direccion: "recibida", archivo: "Registrada a mano",
+        puntoVenta: onlyDigits(emForm.notaPv.value).padStart(5, "0"), numero: onlyDigits(emForm.notaNro.value).padStart(8, "0"),
+        emisor: ref.emisor, emisorCuit: ref.emisorCuit, emisorDom: ref.emisorDom || "", emisorIva: ref.emisorIva || "",
+        cliente: ref.cliente || cfg.empresa.nombre, clienteCuit: ref.clienteCuit || cfg.empresa.cuit, clienteIva: cfg.empresa.iva, clienteDom: cfg.empresa.domicilio };
+    } else {
+      f = { ...base, direccion: "emitida", generada: true, archivo: "Emitida desde la página",
+        puntoVenta: cfg.empresa.pv || "00001", numero: await nextNumero(tipo, all),
+        emisor: cfg.empresa.nombre, emisorCuit: cfg.empresa.cuit, emisorDom: cfg.empresa.domicilio, emisorIva: cfg.empresa.iva,
+        cliente: emForm.cliente.value.trim(), clienteCuit: onlyDigits(emForm.clienteCuit.value), clienteIva: emForm.clienteIva.value, clienteDom: emForm.clienteDom.value.trim() };
+    }
+    await put(f);
+    emDlg.close(); emMode = null;
+    say(`${f.tipo} ${f.puntoVenta}-${f.numero} guardada en ${f.direccion === "emitida" ? "emitidas" : "recibidas"}.`);
+    setView(f.direccion);
+    if (action === "print") printInvoice(f);
+  }
+  $("#emSave").onclick = () => saveEmit("save");
+  $("#emPrint").onclick = () => saveEmit("print");
+
+  function invoiceHTML(f) {
+    const letra = f.letra || (f.tipo || "").slice(-1);
+    const cod = COD[f.tipo] || { A: "01", B: "06", C: "11" }[letra] || "";
+    const titulo = /cr[eé]dito/i.test(f.tipo) ? "NOTA DE CRÉDITO" : /d[eé]bito/i.test(f.tipo) ? "NOTA DE DÉBITO" : "FACTURA";
+    const items = f.items || [{ desc: f.concepto || "", cant: 1, precio: f.neto || f.total || 0, alic: "21", subtotal: f.neto || f.total || 0 }];
+    const showIva = letra === "A";
+    const rows = items.map(i => {
+      const a = i.alic === "ex" ? "Exento" : (letra === "C" ? "" : i.alic.replace(".", ",") + "%");
+      const factor = (letra === "B" && i.alic !== "ex") ? 1 + parseFloat(i.alic) / 100 : 1;
+      const pu = r2(i.precio * factor), st = r2(i.subtotal * factor);
+      return `<tr><td>${esc(i.desc)}</td><td class="r">${nf.format(i.cant)}</td><td class="r">${nf.format(pu)}</td><td class="r">${showIva ? nf.format(i.subtotal) : nf.format(st)}</td>${showIva ? `<td class="r">${a}</td><td class="r">${nf.format(r2(i.alic === "ex" ? i.subtotal : i.subtotal * (1 + parseFloat(i.alic) / 100)))}</td>` : ""}</tr>`;
+    }).join("");
+    let tots = "";
+    if (letra === "A") {
+      tots += `<div><span>Importe neto gravado: $</span><span>${nf.format(f.neto || 0)}</span></div>`;
+      if (f.exento) tots += `<div><span>Importe exento: $</span><span>${nf.format(f.exento)}</span></div>`;
+      for (const [a, v] of Object.entries(f.ivaDet || {})) tots += `<div><span>IVA ${a.replace(".", ",")}%: $</span><span>${nf.format(v)}</span></div>`;
+    } else {
+      tots += `<div><span>Subtotal: $</span><span>${nf.format(f.total || 0)}</span></div>`;
+      if (letra === "B" && f.iva) tots += `<div style="font-weight:400"><span>IVA contenido: $</span><span>${nf.format(f.iva)}</span></div>`;
+    }
+    tots += `<div class="grand"><span>Importe total: $</span><span>${nf.format(f.total || 0)}</span></div>`;
+    return `<div class="inv"><div class="box">
+      <div class="orig">ORIGINAL</div>
+      <div class="hd">
+        <div><div class="em">${esc(f.emisor)}</div><p><b>Razón social:</b> ${esc(f.emisor)}</p><p><b>Domicilio comercial:</b> ${esc(f.emisorDom || "—")}</p><p><b>Condición frente al IVA:</b> ${esc(f.emisorIva || "")}</p></div>
+        <div><h4>${titulo}</h4><p><b>Punto de venta:</b> ${esc(f.puntoVenta)} &nbsp; <b>Comp. nro:</b> ${esc(f.numero)}</p><p><b>Fecha de emisión:</b> ${esc(f.fecha)}</p><p><b>CUIT:</b> ${esc(f.emisorCuit)}</p></div>
+        <div class="letra"><b>${esc(letra)}</b><small>COD. ${cod}</small></div>
+      </div></div>
+      <div class="cli"><p><b>CUIT/DNI:</b> ${esc(f.clienteCuit || "—")}</p><p><b>Razón social:</b> ${esc(f.cliente)}</p><p><b>Condición frente al IVA:</b> ${esc(f.clienteIva || "")}</p><p><b>Domicilio:</b> ${esc(f.clienteDom || "—")}</p><p><b>Condición de venta:</b> ${esc(f.condicionVenta || "")}</p>${f.caratula ? `<p><b>Referencia:</b> ${esc(f.caratula)}</p>` : ""}</div>
+      ${f.assocLabel ? `<div class="ref"><b>Comprobante asociado:</b> ${esc(f.assocLabel)}${f.assocFecha ? " del " + esc(f.assocFecha) : ""}</div>` : ""}
+      <table><thead><tr><th>Producto / servicio</th><th class="r">Cantidad</th><th class="r">Precio unit.</th><th class="r">Subtotal</th>${showIva ? `<th class="r">Alícuota IVA</th><th class="r">Subtotal c/IVA</th>` : ""}</tr></thead><tbody>${rows}</tbody></table>
+      <div class="tots">${tots}</div>
+      ${f.ejemplo ? `<div class="nocae">Comprobante ficticio de ejemplo.</div>` : f.generada ? `<div class="nocae">Comprobante interno sin CAE: no válido como factura electrónica ante ARCA.</div>` : f.cae ? `<p style="margin-top:12px;text-align:right"><b>CAE N°:</b> ${esc(f.cae)}</p>` : ""}
+    </div>`;
+  }
+  function printInvoice(f) {
+    $("#printArea").innerHTML = invoiceHTML(f);
+    const prev = document.title; document.title = `${f.tipo} ${f.puntoVenta}-${f.numero} ${f.cliente}`;
+    setTimeout(() => {
+      let ok = true;
+      try { window.print(); } catch (e) { ok = false; }
+      document.title = prev;
+      if (!ok) say("Este visor no deja imprimir. Abrí la página en el navegador (o desde tu link de Netlify o GitHub) y usá «Imprimir o guardar PDF».", true);
+    }, 50);
+  }
+
+  /* ---------- Resumen y comparación entre años ---------- */
+  const MES3 = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  const shortMoney = v => { const a = Math.abs(v), sg = v < 0 ? "−" : ""; return a >= 1e6 ? `${sg}$ ${(a / 1e6).toLocaleString("es-AR", { maximumFractionDigits: 1 })} M` : a >= 1e3 ? `${sg}$ ${Math.round(a / 1e3)} k` : `${sg}$ ${Math.round(a)}`; };
+  const varPct = (a, b) => { if (!a) return "—"; const v = (b - a) / Math.abs(a) * 100; const cls = v >= 0 ? "up" : "down"; return `<span class="${cls}">${v >= 0 ? "+" : "−"}${Math.abs(v).toLocaleString("es-AR", { maximumFractionDigits: 1 })} %</span>`; };
+  ["rDir", "rA", "rB", "rSame"].forEach(id => $("#" + id).addEventListener("change", () => render()));
+
+  function renderResumen(all) {
+    const years = [...new Set(all.map(f => { const d = toDate(f.fecha); return d ? d.getFullYear() : null; }).filter(Boolean))].sort((a, b) => a - b);
+    const selA = $("#rA"), selB = $("#rB");
+    const opts = years.map(y => `<option value="${y}">${y}</option>`).join("");
+    if (selA.dataset.opts !== opts) {
+      const pa = selA.value, pb = selB.value;
+      selA.innerHTML = opts; selB.innerHTML = opts; selA.dataset.opts = opts;
+      selA.value = years.includes(+pa) ? pa : String(years[Math.max(0, years.length - 2)] || "");
+      selB.value = years.includes(+pb) ? pb : String(years[years.length - 1] || "");
+    }
+    if (!years.length) { $("#rNote").textContent = "Todavía no hay comprobantes con fecha para comparar."; ["rKpis", "rChart", "rGroups", "rIva", "rLegend"].forEach(id => $("#" + id).innerHTML = ""); return; }
+    const yA = +selA.value, yB = +selB.value, rDir = $("#rDir").value, same = $("#rSame").checked;
+    const today = new Date();
+    const inPeriod = d => !same || d.getMonth() < today.getMonth() || (d.getMonth() === today.getMonth() && d.getDate() <= today.getDate());
+    const pick = (y, dx) => all.filter(f => { const d = toDate(f.fecha); return f.direccion === dx && d && d.getFullYear() === y && inPeriod(d); });
+    const A = pick(yA, rDir), B = pick(yB, rDir);
+    $("#rNote").textContent = (same ? `Comparando del 1 de enero al ${today.getDate()} de ${MESES[today.getMonth()]} de cada año, para que el año en curso no quede en desventaja.` : "Comparando los años completos.")
+      + (rDir === "emitida" ? " Ingresos: facturas emitidas." : " Gastos: facturas recibidas.") + " Las notas de crédito se restan.";
+
+    // KPIs
+    const fact = arr => arr.filter(f => !isNota(f));
+    const pend = arr => sum(arr.filter(f => f.estado === "pendiente" && !isNC(f)), "total");
+    const rows = [
+      ["Comprobantes", A.length, B.length, v => v.toLocaleString("es-AR")],
+      ["Neto gravado", sum(A, "neto"), sum(B, "neto"), fmt],
+      ["IVA", sum(A, "iva"), sum(B, "iva"), fmt],
+      ["Total", sum(A, "total"), sum(B, "total"), fmt],
+      ["Promedio por factura", fact(A).length ? sum(fact(A), "total") / fact(A).length : 0, fact(B).length ? sum(fact(B), "total") / fact(B).length : 0, fmt],
+      [rDir === "emitida" ? "Pendiente de cobro" : "Pendiente de pago", pend(A), pend(B), fmt]
+    ];
+    $("#rKpis").innerHTML = `<table class="rt"><thead><tr><th></th><th>${yA}</th><th>${yB}</th><th>Variación</th></tr></thead><tbody>${rows.map(r => `<tr><td>${r[0]}</td><td>${r[3](r[1])}</td><td><b>${r[3](r[2])}</b></td><td>${varPct(r[1], r[2])}</td></tr>`).join("")}</tbody></table>`;
+
+    // Gráfico mensual
+    const nMeses = same ? today.getMonth() + 1 : 12;
+    const byMonth = arr => { const m = Array(12).fill(0); arr.forEach(f => { m[toDate(f.fecha).getMonth()] += sign(f) * (f.total || 0); }); return m.slice(0, nMeses); };
+    const mA = byMonth(A), mB = byMonth(B);
+    $("#rLegend").innerHTML = `<span><i style="background:var(--tab)"></i>${yA}</span><span><i style="background:var(--accent)"></i>${yB}</span>`;
+    $("#rChart").innerHTML = barChart(MES3.slice(0, nMeses), mA, mB, yA, yB);
+
+    // Por grupo
+    const keys = [...new Set([...A, ...B].map(f => grupoNombre(f.grupo) ? f.grupo : ""))];
+    const gRows = keys.map(k => ({ n: k ? grupoNombre(k) : "Sin grupo", a: sum(A.filter(f => (grupoNombre(f.grupo) ? f.grupo : "") === k), "total"), b: sum(B.filter(f => (grupoNombre(f.grupo) ? f.grupo : "") === k), "total") })).sort((x, y) => y.b - x.b);
+    $("#rGroups").innerHTML = gRows.length ? `<table class="rt"><thead><tr><th>Grupo</th><th>${yA}</th><th>${yB}</th><th>Variación</th><th>Peso en ${yB}</th></tr></thead><tbody>${gRows.map(r => `<tr><td>${esc(r.n)}</td><td>${fmt(r.a)}</td><td><b>${fmt(r.b)}</b></td><td>${varPct(r.a, r.b)}</td><td>${sum(B, "total") ? (r.b / sum(B, "total") * 100).toLocaleString("es-AR", { maximumFractionDigits: 1 }) + " %" : "—"}</td></tr>`).join("")}</tbody><tfoot><tr><td>Total</td><td>${fmt(sum(A, "total"))}</td><td>${fmt(sum(B, "total"))}</td><td>${varPct(sum(A, "total"), sum(B, "total"))}</td><td></td></tr></tfoot></table>` : `<p class="hint">No hay comprobantes en este período.</p>`;
+
+    // Posición de IVA del año elegido en "con"
+    $("#rIvaHint").textContent = `Año ${yB}: IVA de las facturas emitidas (débito) menos IVA de las recibidas (crédito). Si da positivo, es IVA a pagar; si da negativo, es saldo a favor.`;
+    const ivaMes = (dx, m) => sum(all.filter(f => { const d = toDate(f.fecha); return f.direccion === dx && d && d.getFullYear() === yB && d.getMonth() === m; }), "iva");
+    const ivaRows = []; let tD = 0, tC = 0;
+    for (let m = 0; m < 12; m++) { const d = ivaMes("emitida", m), c = ivaMes("recibida", m); if (!d && !c) continue; tD += d; tC += c; ivaRows.push(`<tr><td>${cap(MESES[m])}</td><td>${fmt(d)}</td><td>${fmt(c)}</td><td class="${d - c > 0 ? "down" : "up"}">${fmt(d - c)}</td></tr>`); }
+    $("#rIva").innerHTML = ivaRows.length ? `<table class="rt"><thead><tr><th>Mes</th><th>IVA débito (emitidas)</th><th>IVA crédito (recibidas)</th><th>Posición</th></tr></thead><tbody>${ivaRows.join("")}</tbody><tfoot><tr><td>Total ${yB}</td><td>${fmt(tD)}</td><td>${fmt(tC)}</td><td>${fmt(tD - tC)}</td></tr></tfoot></table>` : `<p class="hint">No hay IVA registrado en ${yB}.</p>`;
+  }
+
+  function barChart(labels, a, b, nA, nB) {
+    const W = 760, H = 300, L = 70, R = 10, T = 14, Bt = 28, n = labels.length;
+    const max = Math.max(...a, ...b, 1);
+    const raw = max / 4, mag = Math.pow(10, Math.floor(Math.log10(raw))), step = [1, 2, 2.5, 5, 10].map(x => x * mag).find(x => x >= raw);
+    const top = step * Math.ceil(max / step), ih = H - T - Bt, iw = W - L - R, gw = iw / n, bw = Math.min(26, gw * 0.36);
+    const y = v => T + ih - (Math.max(0, v) / top) * ih;
+    let g = "";
+    for (let v = 0; v <= top + 1e-6; v += step) g += `<line class="gl" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${shortMoney(v)}</text>`;
+    labels.forEach((lb, i) => {
+      const cx = L + gw * i + gw / 2;
+      g += `<rect class="a" x="${cx - bw - 1}" y="${y(a[i])}" width="${bw}" height="${T + ih - y(a[i])}" rx="3"><title>${lb} ${nA}: ${fmt(a[i])}</title></rect>`;
+      g += `<rect class="b" x="${cx + 1}" y="${y(b[i])}" width="${bw}" height="${T + ih - y(b[i])}" rx="3"><title>${lb} ${nB}: ${fmt(b[i])}</title></rect>`;
+      g += `<text x="${cx}" y="${H - 8}" text-anchor="middle">${lb}</text>`;
+    });
+    return `<svg class="ch" viewBox="0 0 ${W} ${H}" role="img" aria-label="Total por mes, ${nA} contra ${nB}">${g}</svg>`;
+  }
+
+  /* ---------- Base de datos ficticia ---------- */
+  const DEMO_VERSION = "3";
+  const DEMO_GRUPOS = [
+    { id: "g1", nombre: "Honorarios abogado" }, { id: "g2", nombre: "Honorarios contador" }, { id: "g3", nombre: "Pago de comisiones" },
+    { id: "g4", nombre: "Alquileres y servicios" }, { id: "g5", nombre: "Comisiones por garantías" }, { id: "g6", nombre: "Asesoramiento financiero" },
+    { id: "g7", nombre: "Gastos recuperados" }, { id: "g8", nombre: "Gastos varios" }
+  ];
+  function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function demoInvoices() {
+    const E = cfg.empresa, rnd = rng(20262025), today = new Date();
+    const pickW = arr => { const tot = arr.reduce((a, x) => a + x.w, 0); let r = rnd() * tot; for (const x of arr) { if ((r -= x.w) <= 0) return x; } return arr[0]; };
+    const between = (a, b) => a + rnd() * (b - a);
+    const round = (v, to) => Math.round(v / to) * to;
+    const dstr = d => String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear();
+    const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+    const factor = d => (d.getFullYear() === 2025 ? 0.68 : 1) * (1 + d.getMonth() * 0.016);
+    const lastYear = Math.min(today.getFullYear(), 2026);
+    const end = today.getFullYear() > 2026 ? new Date(2026, 11, 31) : today;
+    const estadoPara = (d, dias) => {
+      const age = (today - d) / 864e5;
+      if (age > dias + 25 && rnd() > 0.04) return { estado: "saldada", fechaPago: dstr(addDays(d, Math.round(between(5, dias)))) };
+      return age > dias && rnd() > 0.5 ? { estado: "saldada", fechaPago: dstr(addDays(d, Math.round(between(5, Math.max(6, age - 1))))) } : { estado: "pendiente" };
+    };
+    const docs = [];
+    const mkItems = (lst, l) => lst.map(([desc, precio, alic]) => ({ desc, cant: 1, precio, alic: l === "C" ? "0" : (alic || "21"), subtotal: precio }));
+    const base = (o) => {
+      const items = mkItems(o.items, o.l), t = totalsOf(items, o.l);
+      return { id: "demo-" + docs.length, ejemplo: true, cargada: o.date.getTime(), letra: o.l, tipo: o.tipo || tipoDe(o.k || "F", o.l), fecha: dstr(o.date), _d: o.date,
+        condicionVenta: "Transferencia Bancaria", caratula: o.car || "", concepto: cap(o.items[0][0]), items, neto: t.neto, exento: t.exento, ivaDet: t.ivaDet, iva: t.iva, total: t.total, grupo: o.g || "", ...estadoPara(o.date, o.dias || 30) };
+    };
+
+    /* --- Emitidas: entre 50 y 100 por año --- */
+    const C = [
+      { n: "AGROINDUSTRIAS DEL LITORAL S.A.", c: "30701112223", iva: "IVA Responsable Inscripto", dom: "Ruta 11 km 455 - Santa Fe", w: 5 },
+      { n: "TRANSPORTES RIERA S.R.L.", c: "30702223334", iva: "IVA Responsable Inscripto", dom: "Av. Mitre 1520 - Avellaneda", w: 4 },
+      { n: "CONSTRUCTORA VALLE GRANDE S.A.", c: "30703334445", iva: "IVA Responsable Inscripto", dom: "San Martín 330 - Mendoza", w: 4 },
+      { n: "METALÚRGICA SAN JORGE S.A.", c: "30704445556", iva: "IVA Responsable Inscripto", dom: "Av. Pellegrini 2780 - Rosario", w: 3 },
+      { n: "FARMACIAS DEL CENTRO S.R.L.", c: "30705556667", iva: "IVA Responsable Inscripto", dom: "Av. Colón 1150 - Córdoba", w: 3 },
+      { n: "COOPERATIVA AGRÍCOLA LA UNIÓN LTDA.", c: "30706667778", iva: "IVA Responsable Inscripto", dom: "Belgrano 455 - Pergamino", w: 2 },
+      { n: "GÓMEZ HERNÁN DARÍO", c: "20258887776", iva: "Responsable Monotributo", dom: "Mitre 920 - Luján", w: 1 },
+      { n: "PAZ MARTINA", c: "30123456", iva: "Consumidor Final", dom: "Gorriti 4410 - CABA", w: 1 }
+    ];
+    const CONC = [
+      { d: "Comisión por otorgamiento de garantía", p: 1150000, g: "g5", w: 5 },
+      { d: "Comisión por renovación de garantía", p: 620000, g: "g5", w: 2 },
+      { d: "Servicio de asesoramiento financiero", p: 480000, g: "g6", w: 3 },
+      { d: "Gastos de análisis crediticio", p: 140000, g: "g7", w: 2, extra: ["Gastos de certificación de firmas", 22000, "10.5"] }
+    ];
+    const facturas = [];
+    for (let y = 2025; y <= lastYear; y++) {
+      const ini = new Date(y, 0, 2), fin = y === end.getFullYear() ? end : new Date(y, 11, 30);
+      const span = (fin - ini) / 864e5, full = y < end.getFullYear() || span > 360;
+      const count = Math.round((y === 2025 ? between(62, 72) : between(78, 90)) * (full ? 1 : 1));
+      const dates = Array.from({ length: count }, () => addDays(ini, Math.floor(rnd() * span))).sort((a, b) => a - b);
+      for (const d of dates) {
+        const c = pickW(C), k = pickW(CONC);
+        const l = /Monotributo|Exento/.test(E.iva) ? "C" : c.iva === "IVA Responsable Inscripto" ? "A" : "B";
+        const precio = round(k.p * factor(d) * between(0.72, 1.38) * (c.iva === "Consumidor Final" ? 0.25 : 1), 1000);
+        const items = [[k.d, precio]]; if (k.extra) items.push([k.extra[0], round(k.extra[1] * factor(d), 100), k.extra[2]]);
+        const f = base({ date: d, l, items, g: k.g, dias: 30 });
+        Object.assign(f, { direccion: "emitida", generada: true, archivo: "Ejemplo", emisor: E.nombre, emisorCuit: E.cuit, emisorIva: E.iva, emisorDom: E.domicilio, cliente: c.n, clienteCuit: c.c, clienteIva: c.iva, clienteDom: c.dom });
+        docs.push(f); facturas.push(f);
+      }
+    }
+    // notas sobre emitidas
+    const notaSobre = (ref, k, motivo, pct, dir) => {
+      const d = addDays(ref._d, Math.round(between(6, 25))); if (d > end) return;
+      const monto = round(ref.neto * pct, 1000), l = ref.letra;
+      const n = base({ date: d, l, k, items: [[motivo, monto]], g: ref.grupo, dias: 20 });
+      if (k === "NC") Object.assign(n, { estado: "saldada" });
+      const who = dir === "emitida"
+        ? { direccion: "emitida", generada: true, archivo: "Ejemplo", emisor: ref.emisor, emisorCuit: ref.emisorCuit, emisorIva: ref.emisorIva, emisorDom: ref.emisorDom, cliente: ref.cliente, clienteCuit: ref.clienteCuit, clienteIva: ref.clienteIva, clienteDom: ref.clienteDom }
+        : { direccion: "recibida", archivo: "Ejemplo", emisor: ref.emisor, emisorCuit: ref.emisorCuit, emisorIva: ref.emisorIva, emisorDom: ref.emisorDom, cliente: ref.cliente, clienteCuit: ref.clienteCuit, clienteIva: ref.clienteIva, clienteDom: ref.clienteDom, puntoVenta: ref.puntoVenta, cae: String(86350900000000 + docs.length * 7351) };
+      Object.assign(n, who, { _ref: ref }); docs.push(n);
+    };
+    for (let y = 2025; y <= lastYear; y++) {
+      const fy = facturas.filter(f => f._d.getFullYear() === y && f.letra === "A");
+      for (let i = 0; i < 3; i++) notaSobre(fy[Math.floor(rnd() * fy.length)], "NC", pickW([{ v: "Bonificación por pago anticipado", w: 2 }, { v: "Descuento comercial acordado", w: 1 }, { v: "Anulación parcial por error de facturación", w: 1 }]).v, between(0.08, 0.15), "emitida");
+      for (let i = 0; i < 2; i++) notaSobre(fy[Math.floor(rnd() * fy.length)], "ND", "Intereses por mora", between(0.03, 0.05), "emitida");
+    }
+
+    /* --- Recibidas: gastos mes a mes --- */
+    const P = {
+      ferreyra: { n: "ESTUDIO JURÍDICO FERREYRA & ASOCIADOS", c: "30712345678", iva: "IVA Responsable Inscripto", dom: "Tucumán 1455 Piso 3 - CABA", g: "g1", l: "A", pv: "00003" },
+      mendez: { n: "MÉNDEZ LAURA BEATRIZ", c: "27284561239", iva: "Responsable Monotributo", dom: "Av. Corrientes 2210 Of. 8 - CABA", g: "g2", l: "C", pv: "00002" },
+      brokers: { n: "BROKERS DEL PLATA S.A.", c: "30709876542", iva: "IVA Responsable Inscripto", dom: "Av. Leandro N. Alem 690 - CABA", g: "g3", l: "A", pv: "00005" },
+      torres: { n: "INMOBILIARIA TORRES & HIJOS S.R.L.", c: "30715554443", iva: "IVA Responsable Inscripto", dom: "Av. Santa Fe 3120 - CABA", g: "g4", l: "A", pv: "00001" },
+      fibra: { n: "CONECTAR FIBRA S.R.L.", c: "30716667778", iva: "IVA Responsable Inscripto", dom: "Av. Belgrano 845 - CABA", g: "g4", l: "A", pv: "00012" },
+      luz: { n: "DISTRIBUIDORA ELÉCTRICA METROPOLITANA S.A.", c: "30717778889", iva: "IVA Responsable Inscripto", dom: "Av. del Libertador 6363 - CABA", g: "g4", l: "A", pv: "00087" }
+    };
+    const TICKETS = [["ESTACIÓN DE SERVICIO AV. GAONA", "Combustible", 38000], ["LIBRERÍA COMERCIAL OESTE", "Artículos de librería", 21000], ["CAFÉ DEL BAJO", "Almuerzo de trabajo", 46000], ["CORREO ARGENTINO", "Envío de carta documento", 12500], ["CERRAJERÍA MAYO", "Copia de llaves de oficina", 9000]];
+    const CAR = ["LEMPRIERE ARGENTINA C/ DISTRIBUIDORA NORTE S.R.L. S/ EJECUTIVO", "TEXTIL ANDINA S.A. S/ CONCURSO PREVENTIVO", "LEMPRIERE ARGENTINA C/ GÓMEZ, RAÚL ALBERTO S/ EJECUTIVO", "LEMPRIERE ARGENTINA C/ LOGÍSTICA SUR S.A. S/ COBRO DE PESOS", "MOLINOS DEL OESTE S.A. S/ QUIEBRA", "LEMPRIERE ARGENTINA C/ ACOSTA, MARIELA S/ EJECUTIVO", "FRIGORÍFICO LAS PAMPAS S.A. S/ CONCURSO PREVENTIVO", "LEMPRIERE ARGENTINA C/ SERVICIOS INTEGRALES DEL SUR S.A. S/ EJECUTIVO"];
+    const CONC_ABOG = [["Honorarios de inicio", 360000, 3], ["Honorarios profesionales solicitud de verificación", 430000, 2], ["Honorarios por audiencia de conciliación", 280000, 1], ["Honorarios por contestación de demanda", 390000, 1]];
+    const rec = (who, d, items, extra = {}) => {
+      if (d > end) return null;
+      const p = P[who];
+      const f = base({ date: d, l: p.l, items, g: p.g, dias: 20, ...extra });
+      Object.assign(f, { direccion: "recibida", archivo: "Ejemplo", puntoVenta: p.pv, emisor: p.n, emisorCuit: p.c, emisorIva: p.iva, emisorDom: p.dom,
+        cliente: E.nombre.toUpperCase(), clienteCuit: E.cuit, clienteIva: E.iva, clienteDom: E.domicilio, cae: String(86350900000000 + docs.length * 7351), _who: who });
+      docs.push(f); return f;
+    };
+    for (let y = 2025; y <= lastYear; y++) for (let m = 0; m < 12; m++) {
+      const d0 = new Date(y, m, 1); if (d0 > end) break;
+      const fx = factor(d0), mesAnt = MESES[(m + 11) % 12];
+      rec("torres", new Date(y, m, 1), [[`Alquiler de oficina de ${MESES[m]}`, round(900000 * fx / 1.18, 1000)]]);
+      rec("mendez", new Date(y, m, 3 + Math.floor(rnd() * 3)), [[`Honorarios por liquidación de impuestos de ${mesAnt}`, round(285000 * fx / 1.1, 1000)]]);
+      rec("fibra", new Date(y, m, 10), [[`Servicio de internet dedicado de ${MESES[m]}`, round(84000 * fx / 1.15, 100)]]);
+      rec("luz", new Date(y, m, 14 + Math.floor(rnd() * 4)), [[`Consumo de energía eléctrica de ${mesAnt}`, round(between(70000, 130000) * fx * (m < 2 || m > 10 ? 1.35 : 1), 100)]]);
+      const br = rec("brokers", new Date(y, m + 1, 0), [[`Comisión por colocación de garantías de ${MESES[m]}`, round(between(380000, 650000) * fx, 1000)]]);
+      const nAbog = rnd() < 0.55 ? 1 : 2;
+      for (let i = 0; i < nAbog; i++) { const c = pickW(CONC_ABOG.map(x => ({ x, w: x[2] }))).x; rec("ferreyra", new Date(y, m, 2 + Math.floor(rnd() * 25)), [[c[0], round(c[1] * fx * between(0.9, 1.15), 1000)]], { car: CAR[Math.floor(rnd() * CAR.length)] }); }
+      if (br && rnd() < 0.15) notaSobre(br, "NC", `Bonificación sobre comisión de ${MESES[m]}`, between(0.06, 0.12), "recibida");
+      if (rnd() < 0.7) { const t = TICKETS[Math.floor(rnd() * TICKETS.length)], d = new Date(y, m, 2 + Math.floor(rnd() * 26)); if (d <= end) docs.push({ id: "demo-" + docs.length, ejemplo: true, cargada: d.getTime(), direccion: "recibida", tipo: "Ticket", archivo: "Ejemplo", fecha: dstr(d), _d: d, emisor: t[0], cliente: E.nombre.toUpperCase(), clienteCuit: E.cuit, concepto: t[1], total: round(t[2] * fx * between(0.8, 1.3), 100), neto: null, iva: null, grupo: "g8", estado: "saldada", fechaPago: dstr(d) }); }
+    }
+
+    /* --- Numeración en orden de fecha --- */
+    docs.sort((a, b) => a._d - b._d);
+    const nums = {}, start = { ferreyra: 210, mendez: 95, brokers: 1830, torres: 640, fibra: 48210, luz: 7712040 };
+    for (const f of docs) {
+      if (!isFiscal(f)) continue;
+      const key = (f.direccion === "emitida" ? "E" : (f._who || f.emisorCuit)) + "|" + f.tipo;
+      nums[key] = (nums[key] || (f.direccion === "emitida" || isNota(f) ? 0 : (start[f._who] || 0))) + 1;
+      f.numero = String(nums[key]).padStart(8, "0");
+      if (f.direccion === "emitida") f.puntoVenta = E.pv || "00001";
+    }
+    for (const f of docs) {
+      if (f._ref) Object.assign(f, { assocId: f._ref.id, assocLabel: `${f._ref.tipo} ${f._ref.puntoVenta}-${f._ref.numero}`, assocFecha: f._ref.fecha });
+      delete f._ref; delete f._d; delete f._who;
+    }
+    return docs;
+  }
+  async function seedDemo() {
+    for (const g of DEMO_GRUPOS) if (!cfg.grupos.some(x => x.id === g.id)) cfg.grupos.push({ ...g });
+    saveCfg();
+    const all = await getAll();
+    await removeMany(all.filter(f => String(f.id).startsWith("demo-")).map(f => f.id));
+    const docs = demoInvoices(); await putMany(docs); const n = docs.length;
+    try { localStorage.setItem("archivo-facturas-demo", DEMO_VERSION); } catch (e) {}
+    return n;
+  }
+  $("#seedBtn").onclick = async () => { const n = await seedDemo(); meDlg.close(); say(`Se cargaron ${n} comprobantes de ejemplo.`); render(); };
+  $("#wipeBtn").onclick = () => armDelete($("#wipeBtn"), "Tocá otra vez para borrar todo", async () => {
+    await removeMany((await getAll()).map(f => f.id));
+    meDlg.close(); say("Se borraron todas las facturas."); render();
+  });
+
+  openDB().then(async () => {
+    let v = null;
+    try { v = localStorage.getItem("archivo-facturas-demo"); } catch (e) {}
+    if (v !== DEMO_VERSION) await seedDemo();
+    setView(view);
+  });
+})();
+</script>
+</body>
+</html>
