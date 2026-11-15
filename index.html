@@ -186,7 +186,21 @@ h3 { font-size: 1rem; margin: 22px 0 10px; }
   :root { padding: 0; }
   body { background: #fff; }
   .inv { padding: 0; font-size: 11px; }
+  #printArea, #printArea * { color: #000 !important; border-color: #999 !important; background: transparent !important; }
+  #printArea h2 { font-size: 16px; margin: 0 0 4px; }
+  #printArea p { font-size: 11px; margin: 0 0 10px; }
+  #printArea table.rt { font-size: 10px; }
+  #printArea table.rt td, #printArea table.rt th { padding: 3px 6px; }
 }
+.ctabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 0; }
+table.rt tr.ah td { background: var(--bg); font-weight: 600; text-align: left; white-space: normal; }
+table.rt tr.ah td span { color: var(--muted); font-weight: 500; margin-left: 8px; }
+table.rt td.cr { padding-left: 42px; }
+table.rt td.wrap, table.rt th.wrap { white-space: normal; text-align: left; min-width: 180px; }
+table.rt tr.sub td { font-weight: 700; border-top: 1px solid var(--line); }
+table.rt tr.res td { font-weight: 800; font-size: 1.02rem; border-top: 2px solid var(--ink); }
+table.rt .neg { color: var(--danger); }
+.ok { color: var(--accent); font-weight: 700; }
 .preview { flex-direction: column; align-items: center; gap: 10px; }
 .preview img { max-width: 100%; height: auto; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.18); background: #fff; }
 .adj { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 4px; }
@@ -247,6 +261,7 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
     <button class="door" data-go="recibida"><b>Facturas recibidas</b><span>Lo que nos facturan proveedores y profesionales</span><span class="n" id="nRec">0</span></button>
     <button class="door" data-go="emitida"><b>Facturas emitidas</b><span>Lo que les facturamos a nuestros clientes</span><span class="n" id="nEmi">0</span></button>
     <button class="door" data-go="resumen"><b>Resumen y comparación</b><span>Ingresos, gastos e IVA mes a mes, año contra año</span><span class="n" id="nYears">—</span></button>
+    <button class="door" data-go="contabilidad"><b>Contabilidad</b><span>Libro diario, mayor, balance, resultados y libros de IVA, armados solos</span><span class="n">6 libros</span></button>
   </div>
   <div class="upl"><button class="btn primary" id="homeUpload">Subir facturas o comprobantes</button> <button class="btn" id="homeEmit">Emitir una factura</button></div>
 </section>
@@ -274,6 +289,7 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
     <button role="tab" id="tab-recibidas" data-dir="recibida">Recibidas<span></span></button>
     <button role="tab" id="tab-emitidas" data-dir="emitida">Emitidas<span></span></button>
     <button role="tab" id="tab-resumen" data-dir="resumen">Resumen</button>
+    <button role="tab" id="tab-conta" data-dir="contabilidad">Contabilidad</button>
   </nav>
   <div id="listView">
   <p class="tabhint" id="tabhint"></p>
@@ -317,6 +333,25 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
     <div class="card"><h3>Total por mes</h3><div class="legend" id="rLegend"></div><div id="rChart"></div></div>
     <div class="card"><h3>Por grupo</h3><div class="scroll" id="rGroups"></div></div>
     <div class="card"><h3>Posición de IVA por mes</h3><p class="hint" id="rIvaHint"></p><div class="scroll" id="rIva"></div></div>
+  </section>
+
+  <section id="conta" hidden>
+    <div class="ctabs" id="cTabs">
+      <button class="chip" data-libro="diario">Libro diario</button>
+      <button class="chip" data-libro="mayor">Libro mayor</button>
+      <button class="chip" data-libro="balance">Sumas y saldos</button>
+      <button class="chip" data-libro="resultados">Estado de resultados</button>
+      <button class="chip" data-libro="ivav">Libro IVA ventas</button>
+      <button class="chip" data-libro="ivac">Libro IVA compras</button>
+    </div>
+    <div class="rcontrols">
+      <label>Año <select id="cAnio"></select></label>
+      <label>Mes <select id="cMes"></select></label>
+      <label id="cCuentaL">Cuenta <select id="cCuenta"></select></label>
+      <button class="btn small" type="button" id="cPrint">Imprimir o guardar PDF</button>
+    </div>
+    <p class="tabhint" id="cNote"></p>
+    <div class="card"><h3 id="cTitle"></h3><p class="hint" id="cHint"></p><div class="scroll" id="cBody"></div></div>
   </section>
 </div>
 
@@ -565,7 +600,7 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
   const needsReview = f => !f.fecha || f.total == null || (isFiscal(f) && !f.numero);
 
   /* ---------- Estado de la vista ---------- */
-  const viewFromHash = () => ({ "#emitidas": "emitida", "#recibidas": "recibida", "#resumen": "resumen" })[location.hash] || "inicio";
+  const viewFromHash = () => ({ "#emitidas": "emitida", "#recibidas": "recibida", "#resumen": "resumen", "#contabilidad": "contabilidad" })[location.hash] || "inicio";
   let view = viewFromHash();
   let dir = view === "emitida" ? "emitida" : "recibida";
   let filtroGrupo = "todos";
@@ -577,7 +612,7 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
   async function handleFiles(files) {
     const isImg = f => /^image\//.test(f.type) || /\.(jpe?g|png|webp|gif|heic)$/i.test(f.name);
     const pdfs = [...files].filter(f => f.type === "application/pdf" || /\.pdf$/i.test(f.name) || isImg(f));
-    if (view === "inicio" || view === "resumen") setView(dir);
+    if (view !== "recibida" && view !== "emitida") setView(dir);
     if (!pdfs.length) { say("No encontré archivos que se puedan guardar. Elegí PDF o fotos (JPG, PNG).", true); return; }
     const existing = new Set((await getAll()).map(keyOf));
     let rec = 0, emi = 0, dup = 0, otros = 0, lastOtro = null; const failed = [];
@@ -632,12 +667,13 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
   function setView(v) {
     view = v;
     if (v === "recibida" || v === "emitida") { if (v !== dir) filtroGrupo = "todos"; dir = v; }
-    const h = { emitida: "#emitidas", recibida: "#recibidas", resumen: "#resumen" }[v] || "#inicio";
+    const h = { emitida: "#emitidas", recibida: "#recibidas", resumen: "#resumen", contabilidad: "#contabilidad" }[v] || "#inicio";
     if (location.hash !== h) { try { history.pushState(null, "", h); } catch (e) {} }
     $("#home").hidden = v !== "inicio";
     $("#app").hidden = v === "inicio";
-    $("#listView").hidden = v === "resumen";
+    $("#listView").hidden = v === "resumen" || v === "contabilidad";
     $("#resumen").hidden = v !== "resumen";
+    $("#conta").hidden = v !== "contabilidad";
     window.scrollTo(0, 0);
     render();
   }
@@ -667,12 +703,13 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
 
     $("#meBtn").innerHTML = `Tu empresa: <b>${esc(cfg.empresa.nombre)}</b>`;
     document.querySelectorAll(".tabs button").forEach(b => {
-      const on = view === "resumen" ? b.dataset.dir === "resumen" : b.dataset.dir === dir; b.setAttribute("aria-selected", on);
+      const on = (view === "resumen" || view === "contabilidad") ? b.dataset.dir === view : b.dataset.dir === dir; b.setAttribute("aria-selected", on);
       const sp = b.querySelector("span"); if (sp) sp.textContent = String((b.dataset.dir === "emitida" ? emit : recib).length);
     });
     const yrs = [...new Set(everything.map(f => { const d = toDate(f.fecha); return d ? d.getFullYear() : null; }).filter(Boolean))].sort();
     $("#nYears").textContent = yrs.length > 1 ? yrs[0] + "–" + yrs[yrs.length - 1] : (yrs[0] || "—");
     if (view === "resumen") { renderResumen(everything); return; }
+    if (view === "contabilidad") { renderConta(everything); return; }
     $("#tabhint").textContent = dir === "emitida" ? "Facturas que " + cfg.empresa.nombre + " les hizo a sus clientes." : "Facturas que le mandaron a " + cfg.empresa.nombre + " sus proveedores.";
     $("#groupBy").querySelector('[value="contra"]').textContent = dir === "emitida" ? "Cliente" : "Proveedor";
     $("#applyAllTxt").textContent = dir === "emitida" ? "Usar este grupo para todas las facturas de este cliente" : "Usar este grupo para todas las facturas de este proveedor";
@@ -1217,6 +1254,201 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
       g += `<text x="${cx}" y="${H - 8}" text-anchor="middle">${lb}</text>`;
     });
     return `<svg class="ch" viewBox="0 0 ${W} ${H}" role="img" aria-label="Total por mes, ${nA} contra ${nB}">${g}</svg>`;
+  }
+
+  /* ---------- Contabilidad automática ---------- */
+  let libro = "diario";
+  const CTA_FIJAS = [
+    { cod: "1.1.01", n: "Caja", t: "A" }, { cod: "1.1.02", n: "Banco cuenta corriente", t: "A" }, { cod: "1.1.03", n: "Deudores por ventas", t: "A" }, { cod: "1.1.04", n: "IVA crédito fiscal", t: "A" },
+    { cod: "2.1.01", n: "Proveedores", t: "P" }, { cod: "2.1.02", n: "IVA débito fiscal", t: "P" },
+    { cod: "3.1.01", n: "Resultados no asignados", t: "PN" }
+  ];
+  const TIPO_CTA = { A: "Activo", P: "Pasivo", PN: "Patrimonio neto", RP: "Resultado positivo", RN: "Resultado negativo" };
+  function planDeCuentas(all) {
+    const plan = CTA_FIJAS.map(c => ({ ...c }));
+    const ventas = new Set(), gastos = new Set();
+    for (const f of all) { const g = grupoNombre(f.grupo) ? f.grupo : ""; (f.direccion === "emitida" ? ventas : gastos).add(g); }
+    const ordenG = ids => [...ids].sort((a, b) => (a === "" ? 1 : b === "" ? -1 : (a === "g9" ? -1 : b === "g9" ? 1 : grupoNombre(a).localeCompare(grupoNombre(b), "es"))));
+    ordenG(ventas).forEach((g, i) => plan.push({ cod: "4.1." + String(i + 1).padStart(2, "0"), n: g ? grupoNombre(g) : "Ventas varias", t: "RP", key: "V|" + g }));
+    ordenG(gastos).forEach((g, i) => plan.push({ cod: "5.1." + String(i + 1).padStart(2, "0"), n: g ? grupoNombre(g) : "Gastos generales", t: "RN", key: "G|" + g }));
+    return plan;
+  }
+  function asientosDe(all, plan) {
+    const by = k => plan.find(c => c.key === k) || plan.find(c => c.n === k);
+    const C = n => plan.find(c => c.n === n);
+    const out = [];
+    const desc = f => `${f.tipo} ${f.puntoVenta ? f.puntoVenta + "-" : ""}${f.numero || ""} ${f.direccion === "emitida" ? f.cliente || "" : f.emisor || ""}`.replace(/\s+/g, " ").trim();
+    for (const f of all) {
+      const d = toDate(f.fecha); if (!d || f.total == null) continue;
+      const g = grupoNombre(f.grupo) ? f.grupo : "";
+      const total = r2(f.total || 0), iva = r2(f.iva || 0), neto = r2(total - iva);
+      const nc = isNC(f);
+      const L = [];
+      if (f.direccion === "emitida") {
+        const v = by("V|" + g);
+        L.push({ c: C("Deudores por ventas"), d: total, h: 0 }, { c: v, d: 0, h: neto });
+        if (iva) L.push({ c: C("IVA débito fiscal"), d: 0, h: iva });
+      } else if (!isFiscal(f)) {
+        L.push({ c: by("G|" + g), d: total, h: 0 }, { c: C("Banco cuenta corriente"), d: 0, h: total }); // tickets pagados con tarjeta de débito
+      } else {
+        L.push({ c: by("G|" + g), d: neto, h: 0 });
+        if (iva) L.push({ c: C("IVA crédito fiscal"), d: iva, h: 0 });
+        L.push({ c: C("Proveedores"), d: 0, h: total });
+      }
+      if (nc) L.forEach(l => { const t = l.d; l.d = l.h; l.h = t; });
+      out.push({ d, f, ley: desc(f) + (nc ? " (nota de crédito)" : ""), L: L.filter(l => l.d || l.h) });
+      // cobro o pago (solo facturas y notas de débito sueltas; las notas asociadas se cancelan con su factura)
+      if (f.estado === "saldada" && isFiscal(f) && !isNota(f)) {
+        const dp = toDate(f.fechaPago) || d;
+        const monto = saldoOf(f, all);
+        if (monto > 0.004) out.push({ d: dp, f, ley: (f.direccion === "emitida" ? "Cobro de " : "Pago de ") + desc(f), L: f.direccion === "emitida"
+          ? [{ c: C("Banco cuenta corriente"), d: monto, h: 0 }, { c: C("Deudores por ventas"), d: 0, h: monto }]
+          : [{ c: C("Proveedores"), d: monto, h: 0 }, { c: C("Banco cuenta corriente"), d: 0, h: monto }] });
+      }
+    }
+    out.sort((a, b) => a.d - b.d || (a.f.cargada || 0) - (b.f.cargada || 0));
+    const porAnio = {};
+    out.forEach(a => { const y = a.d.getFullYear(); porAnio[y] = (porAnio[y] || 0) + 1; a.n = porAnio[y]; });
+    return out;
+  }
+  const dshort = d => String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear();
+  const m2 = v => v ? nf.format(v) : "";
+  let contaHTML = "";
+
+  ["cAnio", "cMes", "cCuenta"].forEach(id => $("#" + id).addEventListener("change", () => render()));
+  $("#cTabs").querySelectorAll("[data-libro]").forEach(b => b.onclick = () => { libro = b.dataset.libro; render(); });
+  $("#cPrint").onclick = () => {
+    $("#printArea").innerHTML = `<h2>${esc(cfg.empresa.nombre)}: ${esc($("#cTitle").textContent)}</h2><p>${esc($("#cNote").textContent)}</p>${contaHTML}`;
+    const prev = document.title; document.title = `${cfg.empresa.nombre} ${$("#cTitle").textContent}`;
+    setTimeout(() => { try { window.print(); } catch (e) { say("Este visor no deja imprimir. Abrí la página en el navegador.", true); } document.title = prev; }, 50);
+  };
+
+  function renderConta(all) {
+    $("#cTabs").querySelectorAll("[data-libro]").forEach(b => b.setAttribute("aria-pressed", b.dataset.libro === libro));
+    const plan = planDeCuentas(all);
+    const asientos = asientosDe(all, plan);
+    const years = [...new Set(asientos.map(a => a.d.getFullYear()))].sort((a, b) => a - b);
+    const selY = $("#cAnio"), selM = $("#cMes"), selC = $("#cCuenta");
+    const yOpts = years.map(y => `<option value="${y}">${y}</option>`).join("");
+    if (selY.dataset.opts !== yOpts) { const pv = selY.value; selY.innerHTML = yOpts; selY.dataset.opts = yOpts; selY.value = years.includes(+pv) ? pv : String(years[years.length - 1] || ""); }
+    if (!selM.options.length) {
+      selM.innerHTML = `<option value="">Todo el año</option>` + MESES.map((m, i) => `<option value="${i}">${cap(m)}</option>`).join("");
+      const t = new Date(); selM.value = String(t.getMonth());
+    }
+    const cOpts = plan.map(c => `<option value="${esc(c.cod)}">${esc(c.cod)} ${esc(c.n)}</option>`).join("");
+    if (selC.dataset.opts !== cOpts) { const pv = selC.value; selC.innerHTML = cOpts; selC.dataset.opts = cOpts; selC.value = plan.some(c => c.cod === pv) ? pv : "1.1.02"; }
+    $("#cCuentaL").hidden = libro !== "mayor";
+    $("#cMes").parentElement.hidden = libro === "balance" || libro === "resultados";
+
+    if (!years.length) { $("#cTitle").textContent = "Contabilidad"; $("#cHint").textContent = ""; $("#cNote").textContent = ""; $("#cBody").innerHTML = `<p class="hint">Todavía no hay comprobantes con fecha y monto para contabilizar.</p>`; contaHTML = ""; return; }
+    const y = +selY.value, mes = selM.value === "" ? null : +selM.value;
+    const desde = new Date(y, mes == null ? 0 : mes, 1), hasta = new Date(y, mes == null ? 12 : mes + 1, 0, 23, 59);
+    const enPeriodo = d => d >= desde && d <= hasta;
+    const periodoTxt = mes == null ? `año ${y}` : `${MESES[mes]} de ${y}`;
+    $("#cNote").textContent = "Los asientos se arman solos a partir de las facturas, notas, tickets y pagos cargados. Es una contabilidad simplificada para el TP: no incluye inventario, amortizaciones ni retenciones.";
+    let title = "", hint = "", html = "";
+
+    if (libro === "diario") {
+      const list = asientos.filter(a => enPeriodo(a.d));
+      title = `Libro diario, ${periodoTxt}`;
+      hint = `${list.length} asientos. Cada factura genera su asiento y, cuando se marca como pagada o cobrada, se genera el asiento del pago o cobro.`;
+      let td = 0, th = 0;
+      html = list.length ? `<table class="rt"><thead><tr><th>Fecha</th><th>N°</th><th class="wrap">Cuenta</th><th>Debe</th><th>Haber</th></tr></thead><tbody>` + list.map(a => {
+        const deb = a.L.filter(l => l.d), hab = a.L.filter(l => l.h);
+        a.L.forEach(l => { td += l.d; th += l.h; });
+        return `<tr class="ah"><td colspan="5">${dshort(a.d)}, asiento ${a.n}<span>${esc(a.ley)}</span></td></tr>`
+          + deb.map(l => `<tr><td></td><td></td><td class="wrap">${esc(l.c.n)}</td><td>${m2(l.d)}</td><td></td></tr>`).join("")
+          + hab.map(l => `<tr><td></td><td></td><td class="wrap cr">a ${esc(l.c.n)}</td><td></td><td>${m2(l.h)}</td></tr>`).join("");
+      }).join("") + `</tbody><tfoot><tr><td colspan="3">Totales del período</td><td>${m2(td)}</td><td>${m2(th)}</td></tr></tfoot></table>` : `<p class="hint">No hay asientos en este período.</p>`;
+    }
+
+    if (libro === "mayor") {
+      const cta = plan.find(c => c.cod === selC.value) || plan[0];
+      let saldo = 0;
+      const deudora = cta.t === "A" || cta.t === "RN";
+      const movs = [];
+      for (const a of asientos) for (const l of a.L) if (l.c === cta) {
+        const delta = deudora ? l.d - l.h : l.h - l.d;
+        if (a.d < desde) saldo += delta; else if (enPeriodo(a.d)) movs.push({ a, l });
+      }
+      const ini = saldo;
+      title = `Libro mayor: ${cta.cod} ${cta.n}, ${periodoTxt}`;
+      hint = `${TIPO_CTA[cta.t]}. Saldo de naturaleza ${deudora ? "deudora" : "acreedora"}.`;
+      let td = 0, th = 0;
+      html = `<table class="rt"><thead><tr><th>Fecha</th><th>Asiento</th><th class="wrap">Detalle</th><th>Debe</th><th>Haber</th><th>Saldo</th></tr></thead><tbody>
+        <tr><td></td><td></td><td class="wrap"><b>Saldo anterior</b></td><td></td><td></td><td><b>${nf.format(ini)}</b></td></tr>`
+        + movs.map(({ a, l }) => { saldo += deudora ? l.d - l.h : l.h - l.d; td += l.d; th += l.h; return `<tr><td>${dshort(a.d)}</td><td>${a.n}</td><td class="wrap">${esc(a.ley)}</td><td>${m2(l.d)}</td><td>${m2(l.h)}</td><td class="${saldo < 0 ? "neg" : ""}">${nf.format(saldo)}</td></tr>`; }).join("")
+        + `</tbody><tfoot><tr><td colspan="3">Totales y saldo final</td><td>${m2(td)}</td><td>${m2(th)}</td><td>${nf.format(saldo)}</td></tr></tfoot></table>`;
+    }
+
+    if (libro === "balance" || libro === "resultados") {
+      const ini = new Date(y, 0, 1), fin = new Date(y, 12, 0, 23, 59);
+      const sums = new Map(plan.map(c => [c, { d: 0, h: 0 }]));
+      for (const a of asientos) {
+        const patrimonial = c => c.t === "A" || c.t === "P" || c.t === "PN";
+        const rna = plan.find(c => c.t === "PN");
+        for (const l of a.L) {
+          // las cuentas patrimoniales arrastran saldos de años anteriores; los resultados de años anteriores pasan a "Resultados no asignados"
+          if (a.d > fin) continue;
+          const s = sums.get(a.d < ini && !patrimonial(l.c) ? rna : l.c); s.d += l.d; s.h += l.h;
+        }
+      }
+      if (libro === "balance") {
+        title = `Balance de sumas y saldos al 31/12/${y}`;
+        hint = "Las cuentas de activo y pasivo incluyen los saldos de años anteriores; las de resultado muestran solo el año elegido, y lo ganado en años anteriores aparece en «Resultados no asignados». Si la suma del debe y del haber coinciden, la contabilidad está cuadrada.";
+        let T = { d: 0, h: 0, sd: 0, sa: 0 };
+        const rowsB = plan.map(c => { const s = sums.get(c); const sal = s.d - s.h; T.d += s.d; T.h += s.h; if (sal > 0) T.sd += sal; else T.sa -= sal;
+          return (s.d || s.h) ? `<tr><td>${c.cod}</td><td class="wrap">${esc(c.n)}</td><td>${m2(s.d)}</td><td>${m2(s.h)}</td><td>${sal > 0.004 ? nf.format(sal) : ""}</td><td>${sal < -0.004 ? nf.format(-sal) : ""}</td></tr>` : ""; }).join("");
+        const cuadra = Math.abs(T.d - T.h) < 0.05;
+        html = `<table class="rt"><thead><tr><th>Código</th><th class="wrap">Cuenta</th><th>Debe</th><th>Haber</th><th>Saldo deudor</th><th>Saldo acreedor</th></tr></thead><tbody>${rowsB}</tbody><tfoot><tr><td></td><td class="wrap">Totales</td><td>${m2(T.d)}</td><td>${m2(T.h)}</td><td>${m2(T.sd)}</td><td>${m2(T.sa)}</td></tr></tfoot></table>
+          <p class="${cuadra ? "ok" : "down"}" style="margin:12px 0 0">${cuadra ? "✓ El balance cuadra: el debe y el haber suman lo mismo." : "El balance no cuadra; revisá los comprobantes marcados con «Revisar datos»."}</p>`;
+      } else {
+        title = `Estado de resultados, año ${y}`;
+        hint = "Versión simplificada: toma las compras de lana como costo del período, sin variación de existencias.";
+        const res = c => { const s = sums.get(c); return c.t === "RP" ? s.h - s.d : s.d - s.h; };
+        const ing = plan.filter(c => c.t === "RP"), costo = plan.filter(c => c.t === "RN" && c.key === "G|g9"), gas = plan.filter(c => c.t === "RN" && c.key !== "G|g9");
+        const tI = ing.reduce((a, c) => a + res(c), 0), tC = costo.reduce((a, c) => a + res(c), 0), tG = gas.reduce((a, c) => a + res(c), 0);
+        const line = (c, neg) => `<tr><td class="wrap">${esc(c.n)}</td><td>${neg ? "−" : ""}${nf.format(res(c))}</td></tr>`;
+        const pct = v => tI ? ` <span style="color:var(--muted);font-weight:500">(${(v / tI * 100).toLocaleString("es-AR", { maximumFractionDigits: 1 })} % de las ventas)</span>` : "";
+        html = `<table class="rt"><tbody>
+          <tr class="ah"><td colspan="2">Ingresos por ventas</td></tr>${ing.map(c => line(c)).join("")}
+          <tr class="sub"><td class="wrap">Total de ventas netas</td><td>${nf.format(tI)}</td></tr>
+          <tr class="ah"><td colspan="2">Costo</td></tr>${costo.map(c => line(c, true)).join("") || `<tr><td class="wrap">Compras de lana</td><td>0,00</td></tr>`}
+          <tr class="sub"><td class="wrap">Resultado bruto${pct(tI - tC)}</td><td class="${tI - tC < 0 ? "neg" : ""}">${nf.format(tI - tC)}</td></tr>
+          <tr class="ah"><td colspan="2">Gastos</td></tr>${gas.map(c => line(c, true)).join("")}
+          <tr class="sub"><td class="wrap">Total de gastos</td><td>−${nf.format(tG)}</td></tr>
+          <tr class="res"><td class="wrap">Resultado del ejercicio (${tI - tC - tG >= 0 ? "ganancia" : "pérdida"})${pct(tI - tC - tG)}</td><td class="${tI - tC - tG < 0 ? "neg" : ""}">${nf.format(tI - tC - tG)}</td></tr>
+        </tbody></table>`;
+      }
+    }
+
+    if (libro === "ivav" || libro === "ivac") {
+      const dx = libro === "ivav" ? "emitida" : "recibida";
+      const list = all.filter(f => { const d = toDate(f.fecha); return f.direccion === dx && isFiscal(f) && d && enPeriodo(d) && f.total != null; })
+        .sort((a, b) => toDate(a.fecha) - toDate(b.fecha) || (a.numero || "").localeCompare(b.numero || ""));
+      title = `Libro IVA ${dx === "emitida" ? "ventas" : "compras"}, ${periodoTxt}`;
+      hint = dx === "emitida" ? "Facturas y notas emitidas. Las notas de crédito restan." : "Facturas y notas recibidas. Las facturas C (monotributistas) van completas como no gravado. Los tickets no se incluyen.";
+      const T = { n: 0, i21: 0, i105: 0, io: 0, ex: 0, t: 0 };
+      const rows = list.map(f => {
+        const sg = sign(f), iva = f.iva || 0, total = f.total || 0;
+        let i21 = 0, i105 = 0, io = 0, ex = 0, neto = 0;
+        const letraC = (f.letra || (f.tipo || "").slice(-1)) === "C";
+        if (letraC || !iva) { ex = total; }
+        else {
+          if (f.ivaDet && Object.keys(f.ivaDet).length) { for (const [a, v] of Object.entries(f.ivaDet)) { if (a === "21") i21 += v; else if (a === "10.5") i105 += v; else io += v; } }
+          else { const r = f.neto ? iva / f.neto : 0; if (Math.abs(r - 0.21) < 0.01) i21 = iva; else if (Math.abs(r - 0.105) < 0.01) i105 = iva; else io = iva; }
+          ex = r2(f.exento || 0); neto = r2(total - iva - ex);
+        }
+        const v = { n: sg * neto, i21: sg * i21, i105: sg * i105, io: sg * io, ex: sg * ex, t: sg * total };
+        for (const k in T) T[k] += v[k];
+        const cell = x => x ? `<span class="${x < 0 ? "neg" : ""}">${nf.format(x)}</span>` : "";
+        return `<tr><td>${esc(f.fecha)}</td><td>${esc(f.tipo)} ${esc(f.puntoVenta || "")}-${esc(f.numero || "")}</td><td class="wrap">${esc(dx === "emitida" ? f.cliente : f.emisor)}</td><td>${esc(dx === "emitida" ? f.clienteCuit : f.emisorCuit)}</td><td>${cell(v.n)}</td><td>${cell(v.i21)}</td><td>${cell(v.i105)}</td><td>${cell(v.io)}</td><td>${cell(v.ex)}</td><td><b>${cell(v.t)}</b></td></tr>`;
+      }).join("");
+      html = list.length ? `<table class="rt"><thead><tr><th>Fecha</th><th>Comprobante</th><th class="wrap">${dx === "emitida" ? "Cliente" : "Proveedor"}</th><th>CUIT</th><th>Neto gravado</th><th>IVA 21 %</th><th>IVA 10,5 %</th><th>Otras alícuotas</th><th>No gravado o exento</th><th>Total</th></tr></thead><tbody>${rows}</tbody>
+        <tfoot><tr><td colspan="4">Totales (${list.length} comprobantes)</td><td>${nf.format(T.n)}</td><td>${nf.format(T.i21)}</td><td>${nf.format(T.i105)}</td><td>${nf.format(T.io)}</td><td>${nf.format(T.ex)}</td><td>${nf.format(T.t)}</td></tr></tfoot></table>` : `<p class="hint">No hay comprobantes en este período.</p>`;
+    }
+
+    $("#cTitle").textContent = title; $("#cHint").textContent = hint; $("#cBody").innerHTML = html; contaHTML = html;
   }
 
   /* ---------- Base de datos ficticia ---------- */
