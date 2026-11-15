@@ -341,6 +341,7 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
       <button class="chip" data-libro="mayor">Libro mayor</button>
       <button class="chip" data-libro="balance">Sumas y saldos</button>
       <button class="chip" data-libro="resultados">Estado de resultados</button>
+      <button class="chip" data-libro="general">Balance general al cierre</button>
       <button class="chip" data-libro="ivav">Libro IVA ventas</button>
       <button class="chip" data-libro="ivac">Libro IVA compras</button>
     </div>
@@ -458,6 +459,7 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
       <label class="full">Domicilio comercial<input name="domicilio"></label>
       <label>Condición frente al IVA<select name="iva"><option>IVA Responsable Inscripto</option><option>Responsable Monotributo</option><option>IVA Sujeto Exento</option></select></label>
       <label>Punto de venta<input name="pv" inputmode="numeric" pattern="\d{1,5}" title="Hasta 5 números"></label>
+      <label class="full">Capital inicial ($), para el asiento de apertura<input name="capital" inputmode="decimal"></label>
     </div>
     <h3>Datos de ejemplo</h3>
     <p class="hint" style="margin:0 0 10px">Facturas ficticias para mostrar cómo funciona la página. Se cargan solas la primera vez que alguien entra.</p>
@@ -487,7 +489,7 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
 
   /* ---------- Configuración: empresa, grupos y reglas (localStorage) ---------- */
   const DEFAULT_CFG = {
-    empresa: { nombre: "Lempriere Argentina", cuit: "33716680989", domicilio: "", iva: "IVA Responsable Inscripto", pv: "00001" },
+    empresa: { nombre: "Lempriere Argentina", cuit: "33716680989", domicilio: "", iva: "IVA Responsable Inscripto", pv: "00001", capital: 20000000 },
     grupos: [
       { id: "g1", nombre: "Honorarios abogado" },
       { id: "g2", nombre: "Honorarios contador" },
@@ -967,12 +969,12 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
 
   /* ---------- Mi empresa ---------- */
   const meDlg = $("#meDlg"), meForm = $("#meForm");
-  $("#meBtn").onclick = () => { for (const k of ["nombre", "cuit", "domicilio", "iva", "pv"]) meForm[k].value = cfg.empresa[k] || ""; meDlg.showModal(); };
+  $("#meBtn").onclick = () => { for (const k of ["nombre", "cuit", "domicilio", "iva", "pv"]) meForm[k].value = cfg.empresa[k] || ""; meForm.capital.value = toInput(cfg.empresa.capital || 0); meDlg.showModal(); };
   async function saveMe() {
     if (!meForm.nombre.value.trim()) { $("#meErr").textContent = "Falta la razón social."; return; }
     if (onlyDigits(meForm.cuit.value).length !== 11) { $("#meErr").textContent = "El CUIT tiene que tener 11 números."; return; }
     $("#meErr").textContent = "";
-    cfg.empresa = { nombre: meForm.nombre.value.trim(), cuit: onlyDigits(meForm.cuit.value), domicilio: meForm.domicilio.value.trim(), iva: meForm.iva.value, pv: onlyDigits(meForm.pv.value).padStart(5, "0") || "00001" }; saveCfg();
+    cfg.empresa = { nombre: meForm.nombre.value.trim(), cuit: onlyDigits(meForm.cuit.value), domicilio: meForm.domicilio.value.trim(), iva: meForm.iva.value, pv: onlyDigits(meForm.pv.value).padStart(5, "0") || "00001", capital: fromInput(meForm.capital.value) || 0 }; saveCfg();
     let moved = 0;
     for (const f of await getAll()) { const d = autoDir(f); if (d && d !== f.direccion) { f.direccion = d; await put(f); moved++; } }
     meDlg.close(); say("Datos de tu empresa guardados." + (moved ? ` Se reubicaron ${moved} ${moved === 1 ? "factura" : "facturas"}.` : "")); render();
@@ -1259,9 +1261,9 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
   /* ---------- Contabilidad automática ---------- */
   let libro = "diario";
   const CTA_FIJAS = [
-    { cod: "1.1.01", n: "Caja", t: "A" }, { cod: "1.1.02", n: "Banco cuenta corriente", t: "A" }, { cod: "1.1.03", n: "Deudores por ventas", t: "A" }, { cod: "1.1.04", n: "IVA crédito fiscal", t: "A" },
-    { cod: "2.1.01", n: "Proveedores", t: "P" }, { cod: "2.1.02", n: "IVA débito fiscal", t: "P" },
-    { cod: "3.1.01", n: "Resultados no asignados", t: "PN" }
+    { cod: "1.1.01", n: "Caja", t: "A" }, { cod: "1.1.02", n: "Banco cuenta corriente", t: "A" }, { cod: "1.1.03", n: "Deudores por ventas", t: "A" }, { cod: "1.1.04", n: "IVA crédito fiscal", t: "A" }, { cod: "1.1.05", n: "IVA saldo a favor", t: "A" },
+    { cod: "2.1.01", n: "Proveedores", t: "P" }, { cod: "2.1.02", n: "IVA débito fiscal", t: "P" }, { cod: "2.1.03", n: "IVA a pagar", t: "P" },
+    { cod: "3.1.00", n: "Capital social", t: "PN" }, { cod: "3.1.01", n: "Resultados no asignados", t: "PN" }, { cod: "3.1.02", n: "Resultado del ejercicio", t: "PN" }
   ];
   const TIPO_CTA = { A: "Activo", P: "Pasivo", PN: "Patrimonio neto", RP: "Resultado positivo", RN: "Resultado negativo" };
   function planDeCuentas(all) {
@@ -1306,7 +1308,55 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
           : [{ c: C("Proveedores"), d: monto, h: 0 }, { c: C("Banco cuenta corriente"), d: 0, h: monto }] });
       }
     }
-    out.sort((a, b) => a.d - b.d || (a.f.cargada || 0) - (b.f.cargada || 0));
+    out.forEach(a => a.o = 1);
+    if (out.length) {
+      const y0 = Math.min(...out.map(a => a.d.getFullYear()));
+      const cap0 = r2(cfg.empresa.capital || 0);
+      if (cap0 > 0) out.push({ d: new Date(y0, 0, 1), o: 0, f: null, ley: "Asiento de apertura: aporte de capital inicial", L: [{ c: C("Banco cuenta corriente"), d: cap0, h: 0 }, { c: C("Capital social"), d: 0, h: cap0 }] });
+      // liquidación mensual de IVA y pago el día 20 del mes siguiente
+      const hoy0 = new Date(), DF = C("IVA débito fiscal"), CF = C("IVA crédito fiscal"), AF = C("IVA saldo a favor"), AP = C("IVA a pagar"), BCO = C("Banco cuenta corriente");
+      const mesesIva = [...new Set(out.map(a => a.d.getFullYear() * 12 + a.d.getMonth()))].sort((a, b) => a - b);
+      let favor = 0;
+      if (mesesIva.length) for (let mi = mesesIva[0]; mi <= mesesIva[mesesIva.length - 1]; mi++) {
+        const yy = Math.floor(mi / 12), mm = mi % 12, finM = new Date(yy, mm + 1, 0);
+        if (new Date(yy, mm + 1, 0, 23, 59) >= hoy0) break;
+        let df = 0, cf = 0;
+        for (const a of out) if (a.d.getFullYear() === yy && a.d.getMonth() === mm) for (const l of a.L) { if (l.c === DF) df += l.h - l.d; if (l.c === CF) cf += l.d - l.h; }
+        df = r2(df); cf = r2(cf);
+        if (!df && !cf) continue;
+        const L = []; if (df) L.push(df > 0 ? { c: DF, d: df, h: 0 } : { c: DF, d: 0, h: -df }); if (cf) L.push(cf > 0 ? { c: CF, d: 0, h: cf } : { c: CF, d: -cf, h: 0 });
+        const pos = r2(df - cf); let pagar = 0;
+        if (pos > 0) { const usar = r2(Math.min(favor, pos)); if (usar) { L.push({ c: AF, d: 0, h: usar }); favor = r2(favor - usar); } pagar = r2(pos - usar); if (pagar) L.push({ c: AP, d: 0, h: pagar }); }
+        else if (pos < 0) { L.push({ c: AF, d: -pos, h: 0 }); favor = r2(favor - pos); }
+        L.sort((x, y2) => (y2.d ? 1 : 0) - (x.d ? 1 : 0));
+        out.push({ d: finM, o: 1.5, f: null, ley: `Liquidación de IVA de ${MESES[mm]} de ${yy}` + (pagar ? "" : " (queda saldo a favor)"), L });
+        const dPago = new Date(yy, mm + 1, 20);
+        if (pagar && dPago <= hoy0) out.push({ d: dPago, o: 1, f: null, ley: `Pago de IVA de ${MESES[mm]} de ${yy} (declaración jurada)`, L: [{ c: AP, d: pagar, h: 0 }, { c: BCO, d: 0, h: pagar }] });
+      }
+      // asientos de cierre de cada ejercicio terminado (cierre el 31/12)
+      const hoy = new Date(), resEj = C("Resultado del ejercicio"), rna = C("Resultados no asignados");
+      const anios = [...new Set(out.map(a => a.d.getFullYear()))].sort((a, b) => a - b);
+      for (const yy of anios) {
+        const finY = new Date(yy, 11, 31, 23, 59);
+        if (finY >= hoy) continue;
+        const net = new Map();
+        for (const a of out) if (a.d.getFullYear() === yy) for (const l of a.L) if (l.c.t === "RP" || l.c.t === "RN") net.set(l.c, (net.get(l.c) || 0) + l.d - l.h);
+        let resultado = 0;
+        for (const tipo of ["RP", "RN"]) {
+          const L = []; let contra = 0;
+          for (const [c, v] of net) if (c.t === tipo && Math.abs(v) > 0.004) { L.push(v > 0 ? { c, d: 0, h: r2(v) } : { c, d: r2(-v), h: 0 }); contra += v; }
+          if (!L.length) continue;
+          contra = r2(contra); resultado -= contra;
+          L.unshift(contra > 0 ? { c: resEj, d: contra, h: 0 } : { c: resEj, d: 0, h: -contra });
+          L.sort((x, y2) => (y2.d ? 1 : 0) - (x.d ? 1 : 0));
+          out.push({ d: new Date(yy, 11, 31), o: 2, cierre: true, f: null, ley: tipo === "RP" ? `Asiento de cierre ${yy}: refundición de cuentas de resultado positivo` : `Asiento de cierre ${yy}: refundición de cuentas de resultado negativo`, L });
+        }
+        resultado = r2(resultado);
+        if (Math.abs(resultado) > 0.004) out.push({ d: new Date(yy + 1, 0, 1), o: 0, f: null, ley: `Traspaso del resultado del ejercicio ${yy} a resultados no asignados`,
+          L: resultado > 0 ? [{ c: resEj, d: resultado, h: 0 }, { c: rna, d: 0, h: resultado }] : [{ c: rna, d: -resultado, h: 0 }, { c: resEj, d: 0, h: -resultado }] });
+      }
+    }
+    out.sort((a, b) => a.d - b.d || a.o - b.o || ((a.f && a.f.cargada) || 0) - ((b.f && b.f.cargada) || 0));
     const porAnio = {};
     out.forEach(a => { const y = a.d.getFullYear(); porAnio[y] = (porAnio[y] || 0) + 1; a.n = porAnio[y]; });
     return out;
@@ -1338,7 +1388,7 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
     const cOpts = plan.map(c => `<option value="${esc(c.cod)}">${esc(c.cod)} ${esc(c.n)}</option>`).join("");
     if (selC.dataset.opts !== cOpts) { const pv = selC.value; selC.innerHTML = cOpts; selC.dataset.opts = cOpts; selC.value = plan.some(c => c.cod === pv) ? pv : "1.1.02"; }
     $("#cCuentaL").hidden = libro !== "mayor";
-    $("#cMes").parentElement.hidden = libro === "balance" || libro === "resultados";
+    $("#cMes").parentElement.hidden = libro === "balance" || libro === "resultados" || libro === "general";
 
     if (!years.length) { $("#cTitle").textContent = "Contabilidad"; $("#cHint").textContent = ""; $("#cNote").textContent = ""; $("#cBody").innerHTML = `<p class="hint">Todavía no hay comprobantes con fecha y monto para contabilizar.</p>`; contaHTML = ""; return; }
     const y = +selY.value, mes = selM.value === "" ? null : +selM.value;
@@ -1381,21 +1431,64 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
         + `</tbody><tfoot><tr><td colspan="3">Totales y saldo final</td><td>${m2(td)}</td><td>${m2(th)}</td><td>${nf.format(saldo)}</td></tr></tfoot></table>`;
     }
 
-    if (libro === "balance" || libro === "resultados") {
-      const ini = new Date(y, 0, 1), fin = new Date(y, 12, 0, 23, 59);
+    // Sumas antes del cierre del año elegido: las cuentas patrimoniales acumulan todo; las de resultado, solo el año.
+    const sumsFor = yy => {
+      const ini = new Date(yy, 0, 1), fin = new Date(yy, 11, 31, 23, 59);
       const sums = new Map(plan.map(c => [c, { d: 0, h: 0 }]));
       for (const a of asientos) {
-        const patrimonial = c => c.t === "A" || c.t === "P" || c.t === "PN";
-        const rna = plan.find(c => c.t === "PN");
+        if (a.d > fin || (a.cierre && a.d.getFullYear() === yy)) continue;
         for (const l of a.L) {
-          // las cuentas patrimoniales arrastran saldos de años anteriores; los resultados de años anteriores pasan a "Resultados no asignados"
-          if (a.d > fin) continue;
-          const s = sums.get(a.d < ini && !patrimonial(l.c) ? rna : l.c); s.d += l.d; s.h += l.h;
+          const resul = l.c.t === "RP" || l.c.t === "RN";
+          if (resul && a.d < ini) continue;
+          const s = sums.get(l.c); s.d += l.d; s.h += l.h;
         }
       }
+      return sums;
+    };
+    const cerrado = yy => new Date(yy, 11, 31, 23, 59) < new Date();
+
+    if (libro === "general") {
+      const prev = years.includes(y - 1) ? y - 1 : null;
+      const calc = yy => {
+        const S = sumsFor(yy), sal = n => { const c = plan.find(x => x.n === n); const v = S.get(c); return v ? v.d - v.h : 0; };
+        let resultado = 0; for (const c of plan) if (c.t === "RP" || c.t === "RN") { const v = S.get(c); resultado += v.h - v.d; }
+        const ivaNeto = sal("IVA crédito fiscal") + sal("IVA débito fiscal") + sal("IVA saldo a favor") + sal("IVA a pagar"); // positivo: saldo a favor
+        const r = {
+          caja: sal("Caja") + sal("Banco cuenta corriente"), deud: sal("Deudores por ventas"), ivaFavor: ivaNeto > 0 ? ivaNeto : 0,
+          prov: -sal("Proveedores"), ivaPagar: ivaNeto < 0 ? -ivaNeto : 0,
+          capital: -sal("Capital social"), rna: -sal("Resultados no asignados") - sal("Resultado del ejercicio"), res: resultado
+        };
+        r.act = r.caja + r.deud + r.ivaFavor; r.pas = r.prov + r.ivaPagar; r.pn = r.capital + r.rna + r.res;
+        return r;
+      };
+      const A = calc(y), B = prev ? calc(prev) : null;
+      const z = v => nf.format(Math.abs(v) < 0.005 ? 0 : v);
+      const row = (lbl, k, cls = "") => `<tr class="${cls}"><td class="wrap">${lbl}</td><td>${z(A[k])}</td>${B ? `<td>${z(B[k])}</td>` : ""}</tr>`;
+      const head = (lbl) => `<tr class="ah"><td colspan="${B ? 3 : 2}">${lbl}</td></tr>`;
+      title = `Balance general (estado de situación patrimonial) al 31/12/${y}`;
+      hint = (cerrado(y) ? `Ejercicio ${y} cerrado. ` : `Ejercicio ${y} en curso: muestra cómo quedaría al cierre con los comprobantes cargados hasta hoy. `)
+        + "El IVA se liquida cada mes y se paga el día 20 del mes siguiente; en el balance se presenta neto. Los asientos de cierre de cada ejercicio terminado están en el libro diario, el 31 de diciembre." + (B ? ` Se compara con el ejercicio ${prev}, como en los estados contables.` : "");
+      const cuadra = Math.abs(A.act - (A.pas + A.pn)) < 0.05;
+      html = `<table class="rt"><thead><tr><th class="wrap"></th><th>31/12/${y}</th>${B ? `<th>31/12/${prev}</th>` : ""}</tr></thead><tbody>
+        ${head("Activo")}
+        ${row("Caja y bancos", "caja")}${row("Créditos por ventas", "deud")}${(A.ivaFavor || (B && B.ivaFavor)) ? row("Créditos fiscales (IVA saldo a favor)", "ivaFavor") : ""}
+        ${row("Total del activo", "act", "sub")}
+        ${head("Pasivo")}
+        ${row("Deudas comerciales (proveedores)", "prov")}${(A.ivaPagar || (B && B.ivaPagar)) ? row("Deudas fiscales (IVA a pagar)", "ivaPagar") : ""}
+        ${row("Total del pasivo", "pas", "sub")}
+        ${head("Patrimonio neto")}
+        ${row("Capital social", "capital")}${row("Resultados no asignados (ejercicios anteriores)", "rna")}${row(`Resultado del ejercicio`, "res")}
+        ${row("Total del patrimonio neto", "pn", "sub")}
+        <tr class="res"><td class="wrap">Total del pasivo más patrimonio neto</td><td>${nf.format(A.pas + A.pn)}</td>${B ? `<td>${nf.format(B.pas + B.pn)}</td>` : ""}</tr>
+      </tbody></table>
+      <p class="${cuadra ? "ok" : "down"}" style="margin:12px 0 0">${cuadra ? "✓ Activo = pasivo + patrimonio neto." : "El balance no cierra; revisá los comprobantes marcados con «Revisar datos»."}</p>`;
+    }
+
+    if (libro === "balance" || libro === "resultados") {
+      const sums = sumsFor(y);
       if (libro === "balance") {
-        title = `Balance de sumas y saldos al 31/12/${y}`;
-        hint = "Las cuentas de activo y pasivo incluyen los saldos de años anteriores; las de resultado muestran solo el año elegido, y lo ganado en años anteriores aparece en «Resultados no asignados». Si la suma del debe y del haber coinciden, la contabilidad está cuadrada.";
+        title = `Balance de sumas y saldos al 31/12/${y}${cerrado(y) ? ", antes del cierre" : ""}`;
+        hint = "Las cuentas patrimoniales incluyen los saldos de años anteriores; las de resultado muestran solo el año elegido. No incluye los asientos de cierre de este año, para que se vean los saldos de las cuentas de resultado. Si el debe y el haber suman lo mismo, la contabilidad está cuadrada.";
         let T = { d: 0, h: 0, sd: 0, sa: 0 };
         const rowsB = plan.map(c => { const s = sums.get(c); const sal = s.d - s.h; T.d += s.d; T.h += s.h; if (sal > 0) T.sd += sal; else T.sa -= sal;
           return (s.d || s.h) ? `<tr><td>${c.cod}</td><td class="wrap">${esc(c.n)}</td><td>${m2(s.d)}</td><td>${m2(s.h)}</td><td>${sal > 0.004 ? nf.format(sal) : ""}</td><td>${sal < -0.004 ? nf.format(-sal) : ""}</td></tr>` : ""; }).join("");
@@ -1452,7 +1545,7 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
   }
 
   /* ---------- Base de datos ficticia ---------- */
-  const DEMO_VERSION = "4";
+  const DEMO_VERSION = "5";
   const DEMO_GRUPOS = [
     { id: "g9", nombre: "Compra de lana" }, { id: "g10", nombre: "Fletes y transporte" }, { id: "g11", nombre: "Análisis de laboratorio" },
     { id: "g3", nombre: "Pago de comisiones" }, { id: "g4", nombre: "Alquileres y servicios" },
@@ -1497,11 +1590,11 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
       { n: "ARTESANÍAS EN LANA RUCA S.R.L.", c: "30708889990", iva: "IVA Sujeto Exento", dom: "Mitre 455 - San Carlos de Bariloche, Río Negro", w: 1, buys: ["tc", "bl"], small: true }
     ];
     const PROD = {
-      tm: { d: "Tops de lana merino peinada 19,5 micrones (kg)", p: 13800, g: "g5", kg: [1200, 6500] },
-      tc: { d: "Tops de lana Corriedale 27 micrones (kg)", p: 8600, g: "g5", kg: [1500, 7000] },
-      bl: { d: "Blousse de lana merino (kg)", p: 4300, g: "g6", kg: [800, 4000] },
-      la: { d: "Lanolina cruda (grasa de lana) (kg)", p: 2900, g: "g6", kg: [600, 3500] },
-      fa: { d: "Servicio de peinado de lana a façon (kg procesado)", p: 1850, g: "g7", kg: [4000, 15000] }
+      tm: { d: "Tops de lana merino peinada 19,5 micrones (kg)", p: 13800, g: "g5", kg: [120, 650] },
+      tc: { d: "Tops de lana Corriedale 27 micrones (kg)", p: 8600, g: "g5", kg: [150, 700] },
+      bl: { d: "Blousse de lana merino (kg)", p: 4300, g: "g6", kg: [80, 400] },
+      la: { d: "Lanolina cruda (grasa de lana) (kg)", p: 2900, g: "g6", kg: [60, 350] },
+      fa: { d: "Servicio de peinado de lana a façon (kg procesado)", p: 1850, g: "g7", kg: [400, 1500] }
     };
     const facturas = [];
     for (let y = 2025; y <= lastYear; y++) {
@@ -1515,7 +1608,7 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
         const kg = round(between(k.kg[0], k.kg[1]) * (c.small ? 0.08 : 1), 10);
         const precio = round(k.p * factor(d) * between(0.94, 1.08), 10);
         const items = [[k.d, precio, "21", kg]];
-        if (k.g === "g5" && rnd() < 0.3) items.push(["Flete a destino", round(between(180000, 420000) * factor(d), 1000), "21", 1]);
+        if (k.g === "g5" && rnd() < 0.3) items.push(["Flete a destino", round(between(40000, 90000) * factor(d), 1000), "21", 1]);
         const f = base({ date: d, l, items, g: k.g, dias: 45, cond: rnd() < 0.7 ? "Cuenta Corriente" : "Transferencia Bancaria" });
         Object.assign(f, { direccion: "emitida", generada: true, archivo: "Ejemplo", emisor: E.nombre, emisorCuit: E.cuit, emisorIva: E.iva, emisorDom: E.domicilio, cliente: c.n, clienteCuit: c.c, clienteIva: c.iva, clienteDom: c.dom });
         docs.push(f); facturas.push(f);
@@ -1573,18 +1666,18 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
       for (let i = 0; i < compras; i++) {
         const prov = pickW([{ v: "mariposa", w: 3 }, { v: "guanaco", w: 3 }, { v: "coop", w: 2 }]).v;
         const fino = rnd() < 0.65;
-        const kg = round(between(6000, 28000), 10), pr = round((fino ? 5200 : 3300) * fx * between(0.93, 1.07), 10);
+        const kg = round(between(600, 2800), 10), pr = round((fino ? 5200 : 3300) * fx * between(0.93, 1.07), 10);
         const d = new Date(y, m, 2 + Math.floor(rnd() * 25));
         const fc = rec(prov, d, [[fino ? "Lana sucia merino en vellón, zafra " + (m >= 8 ? y + "/" + (y + 1 - 2000) : (y - 1) + "/" + (y - 2000)) + " (kg)" : "Lana sucia Corriedale en vellón (kg)", pr, "21", kg]], { cond: "Cuenta Corriente", dias: 30 });
         if (!fc) continue;
         rec("consig", addDays(d, 2), [["Comisión por intermediación en compra de lana (" + fc.emisor.split(" ").slice(0, 3).join(" ") + ")", round(fc.neto * 0.025, 100)]]);
-        rec("flete", addDays(d, 4), [["Flete de lana sucia desde establecimiento a planta (viaje)", round(between(520000, 980000) * fx, 1000), "21", Math.ceil(kg / 14000)]]);
-        rec("lab", addDays(d, 6), [["Análisis de finura, rinde al lavado y largo de mecha (lote)", round(98000 * fx, 100), "21", Math.max(1, Math.round(kg / 9000))]]);
+        rec("flete", addDays(d, 4), [["Flete de lana sucia desde establecimiento a planta (viaje)", round(between(150000, 320000) * fx, 1000), "21", 1]]);
+        rec("lab", addDays(d, 6), [["Análisis de finura, rinde al lavado y largo de mecha (lote)", round(45000 * fx, 100), "21", Math.max(1, Math.round(kg / 1000))]]);
         if (rnd() < 0.18) notaSobre(fc, "NC", "Ajuste por rinde al lavado inferior al pactado", between(0.02, 0.05), "recibida");
       }
-      rec("torres", new Date(y, m, 1), [[`Alquiler de depósito de lana de ${MESES[m]}`, round(1150000 * fx / 1.18, 1000)]]);
-      rec("luz", new Date(y, m, 14 + Math.floor(rnd() * 4)), [[`Consumo de energía eléctrica de planta de ${mesAnt}`, round(between(900000, 1400000) * fx, 100)]]);
-      rec("gas", new Date(y, m, 18 + Math.floor(rnd() * 4)), [[`Consumo de gas industrial (lavadero) de ${mesAnt}`, round(between(650000, 1100000) * fx * (m >= 4 && m <= 8 ? 1.4 : 1), 100)]]);
+      rec("torres", new Date(y, m, 1), [[`Alquiler de depósito de lana de ${MESES[m]}`, round(650000 * fx / 1.18, 1000)]]);
+      rec("luz", new Date(y, m, 14 + Math.floor(rnd() * 4)), [[`Consumo de energía eléctrica de planta de ${mesAnt}`, round(between(300000, 500000) * fx, 100)]]);
+      rec("gas", new Date(y, m, 18 + Math.floor(rnd() * 4)), [[`Consumo de gas industrial (lavadero) de ${mesAnt}`, round(between(250000, 450000) * fx * (m >= 4 && m <= 8 ? 1.4 : 1), 100)]]);
       rec("mendez", new Date(y, m, 3 + Math.floor(rnd() * 3)), [[`Honorarios por liquidación de impuestos de ${mesAnt}`, round(285000 * fx / 1.1, 1000)]]);
       if ((m + y) % 4 !== 0) { const c = pickW(CONC_ABOG.map(x => ({ x, w: x[2] }))).x; rec("ferreyra", new Date(y, m, 2 + Math.floor(rnd() * 25)), [[c[0], round(c[1] * fx * between(0.9, 1.15), 1000)]], { car: CAR[Math.floor(rnd() * CAR.length)] }); }
       if (rnd() < 0.7) { const t = TICKETS[Math.floor(rnd() * TICKETS.length)], d = new Date(y, m, 2 + Math.floor(rnd() * 26)); if (d <= end) docs.push({ id: "demo-" + docs.length, ejemplo: true, cargada: d.getTime(), direccion: "recibida", tipo: "Ticket", archivo: "Ejemplo", fecha: dstr(d), _d: d, emisor: t[0], cliente: E.nombre.toUpperCase(), clienteCuit: E.cuit, concepto: t[1], total: round(t[2] * fx * between(0.8, 1.3), 100), neto: null, iva: null, grupo: "g8", estado: "saldada", fechaPago: dstr(d) }); }
