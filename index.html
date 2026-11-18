@@ -192,6 +192,19 @@ h3 { font-size: 1rem; margin: 22px 0 10px; }
   #printArea table.rt { font-size: 10px; }
   #printArea table.rt td, #printArea table.rt th { padding: 3px 6px; }
 }
+.alerts { display: flex; flex-wrap: wrap; gap: 12px; margin: -14px 0 30px; max-width: 980px; }
+.alert { font: inherit; text-align: left; cursor: pointer; border-radius: 12px; padding: 12px 16px; border: 1px solid transparent; flex: 1 1 260px; }
+.alert b { display: block; font-size: 1.05rem; }
+.alert span { font-size: .9rem; }
+.alert.red { background: #FDE7E4; color: #8E1F16; border-color: #F4C4BE; }
+.alert.amber { background: var(--warn-soft); color: var(--warn); }
+.alert.green { background: var(--accent-soft); color: var(--accent); cursor: default; }
+.alert:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.pill.venc { background: #FDE7E4; color: #A3261B; }
+table.rt tr.click { cursor: pointer; }
+table.rt tr.click:hover td { background: var(--accent-soft); }
+table.rt tr.det td { background: var(--bg); font-size: .88rem; }
+table.rt td.late { color: var(--danger); font-weight: 600; }
 .ctabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 0; }
 table.rt tr.ah td { background: var(--bg); font-weight: 600; text-align: left; white-space: normal; }
 table.rt tr.ah td span { color: var(--muted); font-weight: 500; margin-left: 8px; }
@@ -257,11 +270,12 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
   <p class="brand">Lempriere Argentina</p>
   <h1>Almacenamiento de facturas</h1>
   <p class="lead">Guardá los PDF de tus facturas, separados en recibidas y emitidas, ordenados por fecha y agrupados como necesites.</p>
+  <div class="alerts" id="homeAlerts"></div>
   <div class="doors">
     <button class="door" data-go="recibida"><b>Facturas recibidas</b><span>Lo que nos facturan proveedores y profesionales</span><span class="n" id="nRec">0</span></button>
     <button class="door" data-go="emitida"><b>Facturas emitidas</b><span>Lo que les facturamos a nuestros clientes</span><span class="n" id="nEmi">0</span></button>
     <button class="door" data-go="resumen"><b>Resumen y comparación</b><span>Ingresos, gastos e IVA mes a mes, año contra año</span><span class="n" id="nYears">—</span></button>
-    <button class="door" data-go="contabilidad"><b>Contabilidad</b><span>Libro diario, mayor, balance, resultados y libros de IVA, armados solos</span><span class="n">6 libros</span></button>
+    <button class="door" data-go="cuentas"><b>Cobros y pagos</b><span>Quién nos debe, a quién le debemos y qué vence</span><span class="n" id="nVenc">—</span></button>
   </div>
   <div class="upl"><button class="btn primary" id="homeUpload">Subir facturas o comprobantes</button> <button class="btn" id="homeEmit">Emitir una factura</button></div>
 </section>
@@ -289,7 +303,7 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
     <button role="tab" id="tab-recibidas" data-dir="recibida">Recibidas<span></span></button>
     <button role="tab" id="tab-emitidas" data-dir="emitida">Emitidas<span></span></button>
     <button role="tab" id="tab-resumen" data-dir="resumen">Resumen</button>
-    <button role="tab" id="tab-conta" data-dir="contabilidad">Contabilidad</button>
+    <button role="tab" id="tab-ctas" data-dir="cuentas">Cobros y pagos</button>
   </nav>
   <div id="listView">
   <p class="tabhint" id="tabhint"></p>
@@ -303,6 +317,7 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
       <label>Desde <input type="date" id="dDesde"></label>
       <label>Hasta <input type="date" id="dHasta"></label>
       <button class="btn small" id="clearF" type="button">Limpiar filtros</button>
+      <button class="btn small" id="exportBtn" type="button">Exportar a Excel</button>
     </div>
     <label>Estado
       <select id="estadoF"><option value="">Todos</option><option value="pendiente">Pendientes</option><option value="saldada">Pagados o cobrados</option></select>
@@ -335,25 +350,16 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
     <div class="card"><h3>Posición de IVA por mes</h3><p class="hint" id="rIvaHint"></p><div class="scroll" id="rIva"></div></div>
   </section>
 
-  <section id="conta" hidden>
-    <div class="ctabs" id="cTabs">
-      <button class="chip" data-libro="diario">Libro diario</button>
-      <button class="chip" data-libro="mayor">Libro mayor</button>
-      <button class="chip" data-libro="balance">Sumas y saldos</button>
-      <button class="chip" data-libro="resultados">Estado de resultados</button>
-      <button class="chip" data-libro="general">Balance general al cierre</button>
-      <button class="chip" data-libro="ivav">Libro IVA ventas</button>
-      <button class="chip" data-libro="ivac">Libro IVA compras</button>
+  <section id="ctas" hidden>
+    <div class="ctabs" id="ccTabs">
+      <button class="chip" data-cc="emitida">Clientes: lo que nos deben</button>
+      <button class="chip" data-cc="recibida">Proveedores: lo que debemos</button>
     </div>
-    <div class="rcontrols">
-      <label>Año <select id="cAnio"></select></label>
-      <label>Mes <select id="cMes"></select></label>
-      <label id="cCuentaL">Cuenta <select id="cCuenta"></select></label>
-      <button class="btn small" type="button" id="cPrint">Imprimir o guardar PDF</button>
-    </div>
-    <p class="tabhint" id="cNote"></p>
-    <div class="card"><h3 id="cTitle"></h3><p class="hint" id="cHint"></p><div class="scroll" id="cBody"></div></div>
+    <dl class="totals" id="ccTotals"></dl>
+    <div class="card"><h3 id="ccProxT">Próximos vencimientos</h3><p class="hint" id="ccProxH"></p><div class="scroll" id="ccProx"></div></div>
+    <div class="card"><h3>Antigüedad de saldos por <span id="ccQuien">cliente</span></h3><p class="hint">Cuánto le debe cada uno (o le debemos), separado por días de atraso desde el vencimiento. Tocá una fila para ver el detalle.</p><div class="scroll" id="ccAging"></div></div>
   </section>
+
 </div>
 
 <!-- Ficha de factura -->
@@ -385,6 +391,7 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
         <label>Importe total ($)<input name="total" inputmode="decimal"></label>
         <label>CAE<input name="cae"></label>
         <label>Estado<select name="estado"><option value="pendiente">Pendiente</option><option value="saldada" id="optSaldada">Pagada</option></select></label>
+        <label>Vencimiento<input name="vencimiento" placeholder="dd/mm/aaaa"></label>
         <label>Fecha de pago o cobro<input name="fechaPago" placeholder="dd/mm/aaaa"></label>
       </div>
       <div class="adj" id="adjBox">
@@ -425,13 +432,15 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
     <div class="fields">
       <label id="emNumPv" hidden>Punto de venta de la nota<input name="notaPv" inputmode="numeric"></label>
       <label id="emNumNro" hidden>Número de la nota<input name="notaNro" inputmode="numeric"></label>
-      <label>Tipo de factura<select name="letra"><option value="A">A</option><option value="B">B</option><option value="C">C</option></select></label>
+      <label>Tipo de factura<select name="letra"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="E">E (exportación)</option></select></label>
       <label>Fecha de emisión<input type="date" name="fecha"></label>
-      <label class="full">Cliente (razón social o nombre)<input name="cliente"></label>
+      <label class="full">Cliente (razón social o nombre)<input name="cliente" list="clientesList" autocomplete="off"></label>
+      <datalist id="clientesList"></datalist>
       <label>CUIT o DNI<input name="clienteCuit" inputmode="numeric"></label>
-      <label>Condición frente al IVA<select name="clienteIva"><option>IVA Responsable Inscripto</option><option>Responsable Monotributo</option><option>IVA Sujeto Exento</option><option>Consumidor Final</option></select></label>
+      <label>Condición frente al IVA<select name="clienteIva"><option>IVA Responsable Inscripto</option><option>Responsable Monotributo</option><option>IVA Sujeto Exento</option><option>Consumidor Final</option><option>Cliente del Exterior</option></select></label>
       <label class="full">Domicilio<input name="clienteDom"></label>
       <label>Condición de venta<select name="condVenta"><option>Transferencia Bancaria</option><option>Contado</option><option>Cuenta Corriente</option><option>Tarjeta de crédito</option><option>Cheque</option></select></label>
+      <label>Plazo de pago<select name="plazo"><option value="0">Contado</option><option value="15">15 días</option><option value="30" selected>30 días</option><option value="45">45 días</option><option value="60">60 días</option><option value="90">90 días</option></select></label>
       <label>Grupo<select name="grupo" id="emGrupo"></select></label>
       <label class="full">Carátula o referencia (opcional)<input name="caratula"></label>
     </div>
@@ -459,7 +468,6 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
       <label class="full">Domicilio comercial<input name="domicilio"></label>
       <label>Condición frente al IVA<select name="iva"><option>IVA Responsable Inscripto</option><option>Responsable Monotributo</option><option>IVA Sujeto Exento</option></select></label>
       <label>Punto de venta<input name="pv" inputmode="numeric" pattern="\d{1,5}" title="Hasta 5 números"></label>
-      <label class="full">Capital inicial ($), para el asiento de apertura<input name="capital" inputmode="decimal"></label>
     </div>
     <h3>Datos de ejemplo</h3>
     <p class="hint" style="margin:0 0 10px">Facturas ficticias para mostrar cómo funciona la página. Se cargan solas la primera vez que alguien entra.</p>
@@ -491,9 +499,13 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
   const DEFAULT_CFG = {
     empresa: { nombre: "Lempriere Argentina", cuit: "33716680989", domicilio: "", iva: "IVA Responsable Inscripto", pv: "00001", capital: 20000000 },
     grupos: [
-      { id: "g1", nombre: "Honorarios abogado" },
-      { id: "g2", nombre: "Honorarios contador" },
-      { id: "g3", nombre: "Pago de comisiones" }
+      { id: "lanas", nombre: "Facturas de Lanas" },
+      { id: "puerto", nombre: "Puerto y Embarque" },
+      { id: "fletes", nombre: "Fletes" },
+      { id: "materiales", nombre: "Materiales" },
+      { id: "servlana", nombre: "Servicios sobre la Lana" },
+      { id: "servicios", nombre: "Servicios" },
+      { id: "honorarios", nombre: "Honorarios" }
     ],
     reglas: {} // CUIT de la contraparte -> id de grupo
   };
@@ -594,7 +606,8 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
       neto: num(m(/Importe Neto Gravado:\s*\$\s*([\d.,]+)/)) ?? num(m(/Subtotal:\s*\$\s*([\d.,]+)/)),
       iva: ivaHits.length ? ivaHits.reduce((a, r) => a + num(r[1]), 0) : null,
       total: num(m(/Importe Total:\s*\$\s*([\d.,]+)/)),
-      cae: m(/\b(\d{14})\b/)
+      cae: m(/\b(\d{14})\b/),
+      vencimiento: m(/Vto\. para el pago:\s*(\d{2}\/\d{2}\/\d{4})/)
     };
   }
   const keyOf = f => [f.tipo, f.puntoVenta, f.numero, onlyDigits(f.emisorCuit)].join("|");
@@ -602,7 +615,7 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
   const needsReview = f => !f.fecha || f.total == null || (isFiscal(f) && !f.numero);
 
   /* ---------- Estado de la vista ---------- */
-  const viewFromHash = () => ({ "#emitidas": "emitida", "#recibidas": "recibida", "#resumen": "resumen", "#contabilidad": "contabilidad" })[location.hash] || "inicio";
+  const viewFromHash = () => ({ "#emitidas": "emitida", "#recibidas": "recibida", "#resumen": "resumen", "#cuentas": "cuentas" })[location.hash] || "inicio";
   let view = viewFromHash();
   let dir = view === "emitida" ? "emitida" : "recibida";
   let filtroGrupo = "todos";
@@ -669,13 +682,13 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
   function setView(v) {
     view = v;
     if (v === "recibida" || v === "emitida") { if (v !== dir) filtroGrupo = "todos"; dir = v; }
-    const h = { emitida: "#emitidas", recibida: "#recibidas", resumen: "#resumen", contabilidad: "#contabilidad" }[v] || "#inicio";
+    const h = { emitida: "#emitidas", recibida: "#recibidas", resumen: "#resumen", cuentas: "#cuentas" }[v] || "#inicio";
     if (location.hash !== h) { try { history.pushState(null, "", h); } catch (e) {} }
     $("#home").hidden = v !== "inicio";
     $("#app").hidden = v === "inicio";
-    $("#listView").hidden = v === "resumen" || v === "contabilidad";
+    $("#listView").hidden = v === "resumen" || v === "cuentas";
     $("#resumen").hidden = v !== "resumen";
-    $("#conta").hidden = v !== "contabilidad";
+    $("#ctas").hidden = v !== "cuentas";
     window.scrollTo(0, 0);
     render();
   }
@@ -688,6 +701,12 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
   window.addEventListener("hashchange", () => { if (viewFromHash() !== view) setView(viewFromHash()); });
 
   /* ---------- Listado ---------- */
+  const addD = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  const dStr = d => String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear();
+  const hoy0 = () => { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate()); };
+  const vencOf = f => toDate(f.vencimiento) || (toDate(f.fecha) ? addD(toDate(f.fecha), 30) : null);
+  const vencida = f => f.estado === "pendiente" && !isNC(f) && isFiscal(f) && vencOf(f) && vencOf(f) < hoy0();
+  let lastAll = [], lastList = [];
   const toDate = s => { const p = (s || "").split("/"); return p.length === 3 ? new Date(+p[2], p[1] - 1, +p[0]) : null; };
   function groupKey(f, by) {
     if (by === "mes") { const d = toDate(f.fecha); return d ? { k: d.getFullYear() * 100 + d.getMonth(), label: cap(MESES[d.getMonth()]) + " " + d.getFullYear() } : { k: -1, label: "Sin fecha" }; }
@@ -701,17 +720,19 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
     const everything = await getAll();
     const recib = everything.filter(f => f.direccion !== "emitida"), emit = everything.filter(f => f.direccion === "emitida");
     const inTab = dir === "emitida" ? emit : recib;
+    lastAll = everything;
+    drawHomeAlerts(everything);
     $("#nRec").textContent = recib.length; $("#nEmi").textContent = emit.length;
 
     $("#meBtn").innerHTML = `Tu empresa: <b>${esc(cfg.empresa.nombre)}</b>`;
     document.querySelectorAll(".tabs button").forEach(b => {
-      const on = (view === "resumen" || view === "contabilidad") ? b.dataset.dir === view : b.dataset.dir === dir; b.setAttribute("aria-selected", on);
+      const on = (view === "resumen" || view === "cuentas") ? b.dataset.dir === view : b.dataset.dir === dir; b.setAttribute("aria-selected", on);
       const sp = b.querySelector("span"); if (sp) sp.textContent = String((b.dataset.dir === "emitida" ? emit : recib).length);
     });
     const yrs = [...new Set(everything.map(f => { const d = toDate(f.fecha); return d ? d.getFullYear() : null; }).filter(Boolean))].sort();
     $("#nYears").textContent = yrs.length > 1 ? yrs[0] + "–" + yrs[yrs.length - 1] : (yrs[0] || "—");
     if (view === "resumen") { renderResumen(everything); return; }
-    if (view === "contabilidad") { renderConta(everything); return; }
+    if (view === "cuentas") { renderCtas(everything); return; }
     $("#tabhint").textContent = dir === "emitida" ? "Facturas que " + cfg.empresa.nombre + " les hizo a sus clientes." : "Facturas que le mandaron a " + cfg.empresa.nombre + " sus proveedores.";
     $("#groupBy").querySelector('[value="contra"]').textContent = dir === "emitida" ? "Cliente" : "Proveedor";
     $("#applyAllTxt").textContent = dir === "emitida" ? "Usar este grupo para todas las facturas de este cliente" : "Usar este grupo para todas las facturas de este proveedor";
@@ -756,6 +777,7 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
     if (!inTab.length) { main.innerHTML = `<div class="empty"><strong>Todavía no hay facturas ${dir === "emitida" ? "emitidas" : "recibidas"}</strong>Subí uno o varios PDF y se van a ubicar acá si ${dir === "emitida" ? "el emisor" : "el cliente"} es ${esc(cfg.empresa.nombre)}.</div>`; return; }
     if (!list.length) { main.innerHTML = `<div class="empty"><strong>Ninguna factura coincide con el filtro</strong>Probá con otro grupo u otra búsqueda.</div>`; return; }
 
+    lastList = list;
     const groups = new Map();
     for (const f of list) { const g = groupKey(f, by); if (!groups.has(g.k)) groups.set(g.k, { label: g.label, items: [] }); groups.get(g.k).items.push(f); }
     const ordered = [...groups.entries()].sort((a, b) => (by === "mes" || by === "anio") ? b[0] - a[0] : String(a[0]).localeCompare(String(b[0]), "es"));
@@ -770,7 +792,7 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
           ${g.items.map(f => `<button class="row" data-id="${esc(f.id)}">
             <div class="num">${esc(f.puntoVenta || "—")}-${esc(f.numero || "—")}</div>
             <div class="fecha">${esc(f.fecha || "—")}</div>
-            <div class="desc"><b>${esc(f.caratula || f.concepto || f.archivo || "Sin detalle")}</b><small>${esc(f.tipo)} ${contraHdr} ${esc(contraNombre(f) || "—")}${f.caratula && f.concepto ? ", " + esc(f.concepto).toLowerCase() : ""}</small><br>${grupoNombre(f.grupo) && by !== "grupo" ? `<span class="pill">${esc(grupoNombre(f.grupo))}</span>` : ""}${needsReview(f) ? '<span class="pill warn">Revisar datos</span>' : ""}${isNota(f) ? `<span class="pill ${isNC(f) ? "nc" : "nd"}">${isNC(f) ? "Nota de crédito" : "Nota de débito"}${f.assocLabel ? " de " + esc(f.assocLabel) : ""}</span>` : ""}${f.estado === "pendiente" && !isNC(f) ? `<span class="pill pend">${dir === "emitida" ? "A cobrar" : "A pagar"}</span>` : ""}${(f.adjuntos || []).length ? `<span class="pill att">${f.adjuntos.length} ${f.adjuntos.length === 1 ? "adjunto" : "adjuntos"}</span>` : ""}${f.ejemplo ? '<span class="pill">Ejemplo</span>' : f.generada ? '<span class="pill warn">Sin CAE</span>' : ""}</div>
+            <div class="desc"><b>${esc(f.caratula || f.concepto || f.archivo || "Sin detalle")}</b><small>${esc(f.tipo)} ${contraHdr} ${esc(contraNombre(f) || "—")}${f.caratula && f.concepto ? ", " + esc(f.concepto).toLowerCase() : ""}</small><br>${grupoNombre(f.grupo) && by !== "grupo" ? `<span class="pill">${esc(grupoNombre(f.grupo))}</span>` : ""}${needsReview(f) ? '<span class="pill warn">Revisar datos</span>' : ""}${isNota(f) ? `<span class="pill ${isNC(f) ? "nc" : "nd"}">${isNC(f) ? "Nota de crédito" : "Nota de débito"}${f.assocLabel ? " de " + esc(f.assocLabel) : ""}</span>` : ""}${vencida(f) ? `<span class="pill venc">Vencida el ${esc(dStr(vencOf(f)))}</span>` : f.estado === "pendiente" && !isNC(f) ? `<span class="pill pend">${dir === "emitida" ? "A cobrar" : "A pagar"}</span>` : ""}${(f.adjuntos || []).length ? `<span class="pill att">${f.adjuntos.length} ${f.adjuntos.length === 1 ? "adjunto" : "adjuntos"}</span>` : ""}${f.ejemplo ? '<span class="pill">Ejemplo</span>' : f.generada ? '<span class="pill warn">Sin CAE</span>' : ""}</div>
             <div class="money neto${isNC(f) ? " neg" : ""}">${isNC(f) ? "−" : ""}${fmt(f.neto)}</div>
             <div class="money total${isNC(f) ? " neg" : ""}"><b>${isNC(f) ? "−" : ""}${fmt(f.total)}</b></div>
           </button>`).join("")}
@@ -969,12 +991,12 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
 
   /* ---------- Mi empresa ---------- */
   const meDlg = $("#meDlg"), meForm = $("#meForm");
-  $("#meBtn").onclick = () => { for (const k of ["nombre", "cuit", "domicilio", "iva", "pv"]) meForm[k].value = cfg.empresa[k] || ""; meForm.capital.value = toInput(cfg.empresa.capital || 0); meDlg.showModal(); };
+  $("#meBtn").onclick = () => { for (const k of ["nombre", "cuit", "domicilio", "iva", "pv"]) meForm[k].value = cfg.empresa[k] || ""; meDlg.showModal(); };
   async function saveMe() {
     if (!meForm.nombre.value.trim()) { $("#meErr").textContent = "Falta la razón social."; return; }
     if (onlyDigits(meForm.cuit.value).length !== 11) { $("#meErr").textContent = "El CUIT tiene que tener 11 números."; return; }
     $("#meErr").textContent = "";
-    cfg.empresa = { nombre: meForm.nombre.value.trim(), cuit: onlyDigits(meForm.cuit.value), domicilio: meForm.domicilio.value.trim(), iva: meForm.iva.value, pv: onlyDigits(meForm.pv.value).padStart(5, "0") || "00001", capital: fromInput(meForm.capital.value) || 0 }; saveCfg();
+    cfg.empresa = { nombre: meForm.nombre.value.trim(), cuit: onlyDigits(meForm.cuit.value), domicilio: meForm.domicilio.value.trim(), iva: meForm.iva.value, pv: onlyDigits(meForm.pv.value).padStart(5, "0") || "00001" }; saveCfg();
     let moved = 0;
     for (const f of await getAll()) { const d = autoDir(f); if (d && d !== f.direccion) { f.direccion = d; await put(f); moved++; } }
     meDlg.close(); say("Datos de tu empresa guardados." + (moved ? ` Se reubicaron ${moved} ${moved === 1 ? "factura" : "facturas"}.` : "")); render();
@@ -1008,14 +1030,14 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
     const letra = emForm.letra.value;
     return [...itemsBox.children].map(r => {
       const cant = fromInput(r.querySelector(".q").value) || 0, precio = fromInput(r.querySelector(".p").value) || 0;
-      const alic = letra === "C" ? "0" : r.querySelector(".a").value;
+      const alic = (letra === "C" || letra === "E") ? "0" : r.querySelector(".a").value;
       return { desc: r.querySelector(".d").value.trim(), cant, precio, alic, subtotal: r2(cant * precio), row: r };
     }).filter(i => i.desc || i.precio);
   }
   function totalsOf(items, letra) {
     let neto = 0, exento = 0; const ivaDet = {};
     for (const i of items) {
-      if (letra === "C") { neto += i.subtotal; continue; }
+      if (letra === "C" || letra === "E") { neto += i.subtotal; continue; }
       if (i.alic === "ex") { exento += i.subtotal; continue; }
       neto += i.subtotal;
       const a = parseFloat(i.alic); if (a > 0) ivaDet[i.alic] = r2((ivaDet[i.alic] || 0) + i.subtotal * a / 100);
@@ -1025,26 +1047,28 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
   }
   function calc() {
     const letra = emForm.letra.value;
-    itemsBox.querySelectorAll(".a").forEach(sel => sel.disabled = letra === "C");
+    itemsBox.querySelectorAll(".a").forEach(sel => sel.disabled = letra === "C" || letra === "E");
     const items = readItems();
     [...itemsBox.children].forEach(r => { const q = fromInput(r.querySelector(".q").value) || 0, pr = fromInput(r.querySelector(".p").value) || 0; r.querySelector(".sub").textContent = fmt(r2(q * pr)); });
     const t = totalsOf(items, letra);
-    let html = letra === "C" ? `<dt>Subtotal</dt><dd>${fmt(t.neto)}</dd>` : `<dt>Neto gravado</dt><dd>${fmt(t.neto)}</dd>`;
+    let html = (letra === "C" || letra === "E") ? `<dt>Subtotal</dt><dd>${fmt(t.neto)}</dd>` : `<dt>Neto gravado</dt><dd>${fmt(t.neto)}</dd>`;
     if (t.exento) html += `<dt>Exento</dt><dd>${fmt(t.exento)}</dd>`;
     for (const [a, v] of Object.entries(t.ivaDet).sort((x, y) => parseFloat(y[0]) - parseFloat(x[0]))) html += `<dt>IVA ${a.replace(".", ",")}%</dt><dd>${fmt(v)}</dd>`;
     html += `<dt class="tot">Total</dt><dd class="tot">${fmt(t.total)}</dd>`;
     $("#calc").innerHTML = html;
   }
   function suggestLetra() {
-    if (/Monotributo|Exento/.test(cfg.empresa.iva)) emForm.letra.value = "C";
+    if (emForm.clienteIva.value === "Cliente del Exterior") emForm.letra.value = "E";
+    else if (/Monotributo|Exento/.test(cfg.empresa.iva)) emForm.letra.value = "C";
     else emForm.letra.value = emForm.clienteIva.value === "IVA Responsable Inscripto" ? "A" : "B";
     calc();
   }
+
   emForm.clienteIva.onchange = suggestLetra;
   emForm.letra.onchange = calc;
   $("#addItem").onclick = () => { addItem(); itemsBox.lastElementChild.querySelector(".d").focus(); };
 
-  const COD = { "Factura A": "01", "Nota de débito A": "02", "Nota de crédito A": "03", "Factura B": "06", "Nota de débito B": "07", "Nota de crédito B": "08", "Factura C": "11", "Nota de débito C": "12", "Nota de crédito C": "13" };
+  const COD = { "Factura E": "19", "Nota de débito E": "20", "Nota de crédito E": "21", "Factura A": "01", "Nota de débito A": "02", "Nota de crédito A": "03", "Factura B": "06", "Nota de débito B": "07", "Nota de crédito B": "08", "Factura C": "11", "Nota de débito C": "12", "Nota de crédito C": "13" };
   const tipoDe = (kind, letra) => (kind === "NC" ? "Nota de crédito " : kind === "ND" ? "Nota de débito " : "Factura ") + letra;
   async function nextNumero(tipo, list) {
     const pv = cfg.empresa.pv || "00001";
@@ -1073,7 +1097,7 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
         ? "Sirve para anular toda la factura o una parte (descuentos, devoluciones, errores). Ya cargamos los renglones de la factura: dejalos para anularla completa o cambiá los importes para una anulación parcial."
         : "Sirve para sumarle un cargo a la factura (intereses, gastos, diferencias de precio). Cargá el renglón con el importe a sumar.")
         + ` Queda asociada a ${ref.tipo} ${ref.puntoVenta}-${ref.numero}.`;
-      emForm.letra.value = ["A", "B", "C"].includes(letra) ? letra : "A";
+      emForm.letra.value = ["A", "B", "C", "E"].includes(letra) ? letra : "A";
       if (recibidaNote) { emForm.cliente.value = ref.cliente || cfg.empresa.nombre; emForm.clienteCuit.value = ref.clienteCuit || ""; emForm.notaPv.value = ref.puntoVenta || ""; }
       else { emForm.cliente.value = ref.cliente || ""; emForm.clienteCuit.value = ref.clienteCuit || ""; emForm.clienteDom.value = ref.clienteDom || ""; if (ref.clienteIva) emForm.clienteIva.value = ref.clienteIva; }
       emForm.condVenta.value = ref.condicionVenta && [...emForm.condVenta.options].some(o => o.value === ref.condicionVenta) ? ref.condicionVenta : "Transferencia Bancaria";
@@ -1088,8 +1112,23 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
       } else { addItem({ desc: "Intereses por mora", cant: 1 }); }
       calc();
     }
-    emDlg.showModal(); (recibidaNote ? emForm.notaNro : itemsBox.querySelector(".p")).focus();
+    fillClientes();
+    emDlg.showModal(); (recibidaNote ? emForm.notaNro : emMode ? itemsBox.querySelector(".p") : emForm.cliente).focus();
   }
+  function fillClientes() {
+    const seen = new Map();
+    for (const f of lastAll) if (f.direccion === "emitida" && f.cliente && !seen.has(f.cliente)) seen.set(f.cliente, f);
+    $("#clientesList").innerHTML = [...seen.keys()].sort((a, b) => a.localeCompare(b, "es")).map(n => `<option value="${esc(n)}">`).join("");
+    return seen;
+  }
+  emForm.cliente.addEventListener("change", () => {
+    if (emMode) return;
+    const f = fillClientes().get(emForm.cliente.value.trim()); if (!f) return;
+    emForm.clienteCuit.value = f.clienteCuit || ""; emForm.clienteDom.value = f.clienteDom || "";
+    if (f.clienteIva) emForm.clienteIva.value = f.clienteIva;
+    if (f.grupo && grupoNombre(f.grupo)) emForm.grupo.value = f.grupo;
+    suggestLetra();
+  });
   $("#emitBtn").onclick = () => openEmit();
   $("#homeEmit").onclick = () => { setView("emitida"); openEmit(); };
 
@@ -1114,6 +1153,8 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
       concepto: cap(items[0].desc), items: items.map(({ row, ...i }) => i),
       neto: t.neto, exento: t.exento, ivaDet: t.ivaDet, iva: t.iva, total: t.total, cae: "", estado: "pendiente"
     };
+    base.vencimiento = dStr(addD(toDate(base.fecha), +emForm.plazo.value || 0));
+    if (+emForm.plazo.value === 0 && !recibidaNote) { base.estado = "saldada"; base.fechaPago = base.fecha; }
     if (ref) Object.assign(base, { assocId: ref.id, assocLabel: `${ref.tipo} ${ref.puntoVenta}-${ref.numero}`, assocFecha: ref.fecha });
     let f;
     if (recibidaNote) {
@@ -1143,7 +1184,7 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
     const items = f.items || [{ desc: f.concepto || "", cant: 1, precio: f.neto || f.total || 0, alic: "21", subtotal: f.neto || f.total || 0 }];
     const showIva = letra === "A";
     const rows = items.map(i => {
-      const a = i.alic === "ex" ? "Exento" : (letra === "C" ? "" : i.alic.replace(".", ",") + "%");
+      const a = i.alic === "ex" ? "Exento" : ((letra === "C" || letra === "E") ? "" : i.alic.replace(".", ",") + "%");
       const factor = (letra === "B" && i.alic !== "ex") ? 1 + parseFloat(i.alic) / 100 : 1;
       const pu = r2(i.precio * factor), st = r2(i.subtotal * factor);
       return `<tr><td>${esc(i.desc)}</td><td class="r">${nf.format(i.cant)}</td><td class="r">${nf.format(pu)}</td><td class="r">${showIva ? nf.format(i.subtotal) : nf.format(st)}</td>${showIva ? `<td class="r">${a}</td><td class="r">${nf.format(r2(i.alic === "ex" ? i.subtotal : i.subtotal * (1 + parseFloat(i.alic) / 100)))}</td>` : ""}</tr>`;
@@ -1258,301 +1299,105 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
     return `<svg class="ch" viewBox="0 0 ${W} ${H}" role="img" aria-label="Total por mes, ${nA} contra ${nB}">${g}</svg>`;
   }
 
-  /* ---------- Contabilidad automática ---------- */
-  let libro = "diario";
-  const CTA_FIJAS = [
-    { cod: "1.1.01", n: "Caja", t: "A" }, { cod: "1.1.02", n: "Banco cuenta corriente", t: "A" }, { cod: "1.1.03", n: "Deudores por ventas", t: "A" }, { cod: "1.1.04", n: "IVA crédito fiscal", t: "A" }, { cod: "1.1.05", n: "IVA saldo a favor", t: "A" },
-    { cod: "2.1.01", n: "Proveedores", t: "P" }, { cod: "2.1.02", n: "IVA débito fiscal", t: "P" }, { cod: "2.1.03", n: "IVA a pagar", t: "P" },
-    { cod: "3.1.00", n: "Capital social", t: "PN" }, { cod: "3.1.01", n: "Resultados no asignados", t: "PN" }, { cod: "3.1.02", n: "Resultado del ejercicio", t: "PN" }
-  ];
-  const TIPO_CTA = { A: "Activo", P: "Pasivo", PN: "Patrimonio neto", RP: "Resultado positivo", RN: "Resultado negativo" };
-  function planDeCuentas(all) {
-    const plan = CTA_FIJAS.map(c => ({ ...c }));
-    const ventas = new Set(), gastos = new Set();
-    for (const f of all) { const g = grupoNombre(f.grupo) ? f.grupo : ""; (f.direccion === "emitida" ? ventas : gastos).add(g); }
-    const ordenG = ids => [...ids].sort((a, b) => (a === "" ? 1 : b === "" ? -1 : (a === "g9" ? -1 : b === "g9" ? 1 : grupoNombre(a).localeCompare(grupoNombre(b), "es"))));
-    ordenG(ventas).forEach((g, i) => plan.push({ cod: "4.1." + String(i + 1).padStart(2, "0"), n: g ? grupoNombre(g) : "Ventas varias", t: "RP", key: "V|" + g }));
-    ordenG(gastos).forEach((g, i) => plan.push({ cod: "5.1." + String(i + 1).padStart(2, "0"), n: g ? grupoNombre(g) : "Gastos generales", t: "RN", key: "G|" + g }));
-    return plan;
-  }
-  function asientosDe(all, plan) {
-    const by = k => plan.find(c => c.key === k) || plan.find(c => c.n === k);
-    const C = n => plan.find(c => c.n === n);
-    const out = [];
-    const desc = f => `${f.tipo} ${f.puntoVenta ? f.puntoVenta + "-" : ""}${f.numero || ""} ${f.direccion === "emitida" ? f.cliente || "" : f.emisor || ""}`.replace(/\s+/g, " ").trim();
-    for (const f of all) {
-      const d = toDate(f.fecha); if (!d || f.total == null) continue;
-      const g = grupoNombre(f.grupo) ? f.grupo : "";
-      const total = r2(f.total || 0), iva = r2(f.iva || 0), neto = r2(total - iva);
-      const nc = isNC(f);
-      const L = [];
-      if (f.direccion === "emitida") {
-        const v = by("V|" + g);
-        L.push({ c: C("Deudores por ventas"), d: total, h: 0 }, { c: v, d: 0, h: neto });
-        if (iva) L.push({ c: C("IVA débito fiscal"), d: 0, h: iva });
-      } else if (!isFiscal(f)) {
-        L.push({ c: by("G|" + g), d: total, h: 0 }, { c: C("Banco cuenta corriente"), d: 0, h: total }); // tickets pagados con tarjeta de débito
-      } else {
-        L.push({ c: by("G|" + g), d: neto, h: 0 });
-        if (iva) L.push({ c: C("IVA crédito fiscal"), d: iva, h: 0 });
-        L.push({ c: C("Proveedores"), d: 0, h: total });
-      }
-      if (nc) L.forEach(l => { const t = l.d; l.d = l.h; l.h = t; });
-      out.push({ d, f, ley: desc(f) + (nc ? " (nota de crédito)" : ""), L: L.filter(l => l.d || l.h) });
-      // cobro o pago (solo facturas y notas de débito sueltas; las notas asociadas se cancelan con su factura)
-      if (f.estado === "saldada" && isFiscal(f) && !isNota(f)) {
-        const dp = toDate(f.fechaPago) || d;
-        const monto = saldoOf(f, all);
-        if (monto > 0.004) out.push({ d: dp, f, ley: (f.direccion === "emitida" ? "Cobro de " : "Pago de ") + desc(f), L: f.direccion === "emitida"
-          ? [{ c: C("Banco cuenta corriente"), d: monto, h: 0 }, { c: C("Deudores por ventas"), d: 0, h: monto }]
-          : [{ c: C("Proveedores"), d: monto, h: 0 }, { c: C("Banco cuenta corriente"), d: 0, h: monto }] });
-      }
-    }
-    out.forEach(a => a.o = 1);
-    if (out.length) {
-      const y0 = Math.min(...out.map(a => a.d.getFullYear()));
-      const cap0 = r2(cfg.empresa.capital || 0);
-      if (cap0 > 0) out.push({ d: new Date(y0, 0, 1), o: 0, f: null, ley: "Asiento de apertura: aporte de capital inicial", L: [{ c: C("Banco cuenta corriente"), d: cap0, h: 0 }, { c: C("Capital social"), d: 0, h: cap0 }] });
-      // liquidación mensual de IVA y pago el día 20 del mes siguiente
-      const hoy0 = new Date(), DF = C("IVA débito fiscal"), CF = C("IVA crédito fiscal"), AF = C("IVA saldo a favor"), AP = C("IVA a pagar"), BCO = C("Banco cuenta corriente");
-      const mesesIva = [...new Set(out.map(a => a.d.getFullYear() * 12 + a.d.getMonth()))].sort((a, b) => a - b);
-      let favor = 0;
-      if (mesesIva.length) for (let mi = mesesIva[0]; mi <= mesesIva[mesesIva.length - 1]; mi++) {
-        const yy = Math.floor(mi / 12), mm = mi % 12, finM = new Date(yy, mm + 1, 0);
-        if (new Date(yy, mm + 1, 0, 23, 59) >= hoy0) break;
-        let df = 0, cf = 0;
-        for (const a of out) if (a.d.getFullYear() === yy && a.d.getMonth() === mm) for (const l of a.L) { if (l.c === DF) df += l.h - l.d; if (l.c === CF) cf += l.d - l.h; }
-        df = r2(df); cf = r2(cf);
-        if (!df && !cf) continue;
-        const L = []; if (df) L.push(df > 0 ? { c: DF, d: df, h: 0 } : { c: DF, d: 0, h: -df }); if (cf) L.push(cf > 0 ? { c: CF, d: 0, h: cf } : { c: CF, d: -cf, h: 0 });
-        const pos = r2(df - cf); let pagar = 0;
-        if (pos > 0) { const usar = r2(Math.min(favor, pos)); if (usar) { L.push({ c: AF, d: 0, h: usar }); favor = r2(favor - usar); } pagar = r2(pos - usar); if (pagar) L.push({ c: AP, d: 0, h: pagar }); }
-        else if (pos < 0) { L.push({ c: AF, d: -pos, h: 0 }); favor = r2(favor - pos); }
-        L.sort((x, y2) => (y2.d ? 1 : 0) - (x.d ? 1 : 0));
-        out.push({ d: finM, o: 1.5, f: null, ley: `Liquidación de IVA de ${MESES[mm]} de ${yy}` + (pagar ? "" : " (queda saldo a favor)"), L });
-        const dPago = new Date(yy, mm + 1, 20);
-        if (pagar && dPago <= hoy0) out.push({ d: dPago, o: 1, f: null, ley: `Pago de IVA de ${MESES[mm]} de ${yy} (declaración jurada)`, L: [{ c: AP, d: pagar, h: 0 }, { c: BCO, d: 0, h: pagar }] });
-      }
-      // asientos de cierre de cada ejercicio terminado (cierre el 31/12)
-      const hoy = new Date(), resEj = C("Resultado del ejercicio"), rna = C("Resultados no asignados");
-      const anios = [...new Set(out.map(a => a.d.getFullYear()))].sort((a, b) => a - b);
-      for (const yy of anios) {
-        const finY = new Date(yy, 11, 31, 23, 59);
-        if (finY >= hoy) continue;
-        const net = new Map();
-        for (const a of out) if (a.d.getFullYear() === yy) for (const l of a.L) if (l.c.t === "RP" || l.c.t === "RN") net.set(l.c, (net.get(l.c) || 0) + l.d - l.h);
-        let resultado = 0;
-        for (const tipo of ["RP", "RN"]) {
-          const L = []; let contra = 0;
-          for (const [c, v] of net) if (c.t === tipo && Math.abs(v) > 0.004) { L.push(v > 0 ? { c, d: 0, h: r2(v) } : { c, d: r2(-v), h: 0 }); contra += v; }
-          if (!L.length) continue;
-          contra = r2(contra); resultado -= contra;
-          L.unshift(contra > 0 ? { c: resEj, d: contra, h: 0 } : { c: resEj, d: 0, h: -contra });
-          L.sort((x, y2) => (y2.d ? 1 : 0) - (x.d ? 1 : 0));
-          out.push({ d: new Date(yy, 11, 31), o: 2, cierre: true, f: null, ley: tipo === "RP" ? `Asiento de cierre ${yy}: refundición de cuentas de resultado positivo` : `Asiento de cierre ${yy}: refundición de cuentas de resultado negativo`, L });
-        }
-        resultado = r2(resultado);
-        if (Math.abs(resultado) > 0.004) out.push({ d: new Date(yy + 1, 0, 1), o: 0, f: null, ley: `Traspaso del resultado del ejercicio ${yy} a resultados no asignados`,
-          L: resultado > 0 ? [{ c: resEj, d: resultado, h: 0 }, { c: rna, d: 0, h: resultado }] : [{ c: rna, d: -resultado, h: 0 }, { c: resEj, d: 0, h: -resultado }] });
-      }
-    }
-    out.sort((a, b) => a.d - b.d || a.o - b.o || ((a.f && a.f.cargada) || 0) - ((b.f && b.f.cargada) || 0));
-    const porAnio = {};
-    out.forEach(a => { const y = a.d.getFullYear(); porAnio[y] = (porAnio[y] || 0) + 1; a.n = porAnio[y]; });
-    return out;
-  }
-  const dshort = d => String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear();
-  const m2 = v => v ? nf.format(v) : "";
-  let contaHTML = "";
-
-  ["cAnio", "cMes", "cCuenta"].forEach(id => $("#" + id).addEventListener("change", () => render()));
-  $("#cTabs").querySelectorAll("[data-libro]").forEach(b => b.onclick = () => { libro = b.dataset.libro; render(); });
-  $("#cPrint").onclick = () => {
-    $("#printArea").innerHTML = `<h2>${esc(cfg.empresa.nombre)}: ${esc($("#cTitle").textContent)}</h2><p>${esc($("#cNote").textContent)}</p>${contaHTML}`;
-    const prev = document.title; document.title = `${cfg.empresa.nombre} ${$("#cTitle").textContent}`;
-    setTimeout(() => { try { window.print(); } catch (e) { say("Este visor no deja imprimir. Abrí la página en el navegador.", true); } document.title = prev; }, 50);
+  /* ---------- Exportar a Excel (CSV) ---------- */
+  $("#exportBtn").onclick = () => {
+    if (!lastList.length) { say("No hay comprobantes para exportar con estos filtros.", true); return; }
+    const n2 = v => v == null || isNaN(v) ? "" : String(Math.round(v * 100) / 100).replace(".", ",");
+    const q = v => { const t = String(v ?? ""); return /[;"\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+    const head = ["Fecha", "Tipo", "Punto de venta", "Número", "Emisor", "CUIT emisor", "Cliente", "CUIT cliente", "Concepto", "Carátula o referencia", "Grupo", "Neto", "IVA", "Total", "Estado", "Vencimiento", "Fecha de pago", "CAE"];
+    const rows = lastList.map(f => [f.fecha, f.tipo, f.puntoVenta, f.numero, f.emisor, f.emisorCuit, f.cliente, f.clienteCuit, f.concepto, f.caratula, grupoNombre(f.grupo), n2(sign(f) * (f.neto ?? 0)), n2(sign(f) * (f.iva ?? 0)), n2(sign(f) * (f.total ?? 0)),
+      f.estado === "pendiente" ? "Pendiente" : (f.direccion === "emitida" ? "Cobrada" : "Pagada"), f.vencimiento || (vencOf(f) ? dStr(vencOf(f)) : ""), f.fechaPago, f.cae].map(q).join(";"));
+    const csv = "\ufeff" + [head.join(";"), ...rows].join("\r\n");
+    try {
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+      const a = document.createElement("a"); a.href = url; a.download = `${cfg.empresa.nombre.replace(/\W+/g, "-")}-${dir === "emitida" ? "emitidas" : "recibidas"}-${dStr(new Date()).replace(/\//g, "-")}.csv`;
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+      say(`Se exportaron ${lastList.length} comprobantes. El archivo se abre con Excel. Si no se descargó, abrí la página desde tu link de GitHub.`);
+    } catch (e) { say("Este visor no deja descargar archivos. Abrí la página desde tu link de GitHub para exportar.", true); }
   };
 
-  function renderConta(all) {
-    $("#cTabs").querySelectorAll("[data-libro]").forEach(b => b.setAttribute("aria-pressed", b.dataset.libro === libro));
-    const plan = planDeCuentas(all);
-    const asientos = asientosDe(all, plan);
-    const years = [...new Set(asientos.map(a => a.d.getFullYear()))].sort((a, b) => a - b);
-    const selY = $("#cAnio"), selM = $("#cMes"), selC = $("#cCuenta");
-    const yOpts = years.map(y => `<option value="${y}">${y}</option>`).join("");
-    if (selY.dataset.opts !== yOpts) { const pv = selY.value; selY.innerHTML = yOpts; selY.dataset.opts = yOpts; selY.value = years.includes(+pv) ? pv : String(years[years.length - 1] || ""); }
-    if (!selM.options.length) {
-      selM.innerHTML = `<option value="">Todo el año</option>` + MESES.map((m, i) => `<option value="${i}">${cap(m)}</option>`).join("");
-      const t = new Date(); selM.value = String(t.getMonth());
-    }
-    const cOpts = plan.map(c => `<option value="${esc(c.cod)}">${esc(c.cod)} ${esc(c.n)}</option>`).join("");
-    if (selC.dataset.opts !== cOpts) { const pv = selC.value; selC.innerHTML = cOpts; selC.dataset.opts = cOpts; selC.value = plan.some(c => c.cod === pv) ? pv : "1.1.02"; }
-    $("#cCuentaL").hidden = libro !== "mayor";
-    $("#cMes").parentElement.hidden = libro === "balance" || libro === "resultados" || libro === "general";
+  /* ---------- Cobros y pagos (cuentas corrientes) ---------- */
+  let ccDir = "emitida"; const ccOpen = new Set();
+  const pendientes = (all, dx) => all.filter(f => f.direccion === dx && isFiscal(f) && !isNota(f) && f.estado === "pendiente" && f.total != null)
+    .map(f => ({ f, saldo: saldoOf(f, all), venc: vencOf(f) })).filter(x => x.saldo > 0.004);
+  const diasEntre = (a, b) => Math.round((b - a) / 864e5);
 
-    if (!years.length) { $("#cTitle").textContent = "Contabilidad"; $("#cHint").textContent = ""; $("#cNote").textContent = ""; $("#cBody").innerHTML = `<p class="hint">Todavía no hay comprobantes con fecha y monto para contabilizar.</p>`; contaHTML = ""; return; }
-    const y = +selY.value, mes = selM.value === "" ? null : +selM.value;
-    const desde = new Date(y, mes == null ? 0 : mes, 1), hasta = new Date(y, mes == null ? 12 : mes + 1, 0, 23, 59);
-    const enPeriodo = d => d >= desde && d <= hasta;
-    const periodoTxt = mes == null ? `año ${y}` : `${MESES[mes]} de ${y}`;
-    $("#cNote").textContent = "Los asientos se arman solos a partir de las facturas, notas, tickets y pagos cargados. Es una contabilidad simplificada para el TP: no incluye inventario, amortizaciones ni retenciones.";
-    let title = "", hint = "", html = "";
+  function drawHomeAlerts(all) {
+    const t = hoy0(), en7 = addD(t, 7);
+    const cob = pendientes(all, "emitida"), pag = pendientes(all, "recibida");
+    const vC = cob.filter(x => x.venc && x.venc < t), vP = pag.filter(x => x.venc && x.venc < t);
+    const pP = pag.filter(x => x.venc && x.venc >= t && x.venc <= en7);
+    const sm = arr => fmt(arr.reduce((a, x) => a + x.saldo, 0));
+    let h = "";
+    if (vC.length) h += `<button class="alert red" data-alert="emitida"><b>${vC.length} ${vC.length === 1 ? "factura vencida" : "facturas vencidas"} sin cobrar</b><span>Nos deben ${sm(vC)}. Ver clientes →</span></button>`;
+    if (vP.length) h += `<button class="alert red" data-alert="recibida"><b>${vP.length} ${vP.length === 1 ? "pago vencido" : "pagos vencidos"}</b><span>Debemos ${sm(vP)}. Ver proveedores →</span></button>`;
+    if (pP.length) h += `<button class="alert amber" data-alert="recibida"><b>${pP.length} ${pP.length === 1 ? "pago vence" : "pagos vencen"} esta semana</b><span>Total ${sm(pP)}. Ver proveedores →</span></button>`;
+    if (!h) h = `<div class="alert green"><b>Todo al día</b><span>No hay cobros ni pagos vencidos.</span></div>`;
+    $("#homeAlerts").innerHTML = h;
+    $("#homeAlerts").querySelectorAll("[data-alert]").forEach(b => b.onclick = () => { ccDir = b.dataset.alert; setView("cuentas"); });
+    $("#nVenc").textContent = (vC.length + vP.length) ? `${vC.length + vP.length} vencidas` : "Al día";
+  }
+  $("#ccTabs").querySelectorAll("[data-cc]").forEach(b => b.onclick = () => { ccDir = b.dataset.cc; ccOpen.clear(); render(); });
 
-    if (libro === "diario") {
-      const list = asientos.filter(a => enPeriodo(a.d));
-      title = `Libro diario, ${periodoTxt}`;
-      hint = `${list.length} asientos. Cada factura genera su asiento y, cuando se marca como pagada o cobrada, se genera el asiento del pago o cobro.`;
-      let td = 0, th = 0;
-      html = list.length ? `<table class="rt"><thead><tr><th>Fecha</th><th>N°</th><th class="wrap">Cuenta</th><th>Debe</th><th>Haber</th></tr></thead><tbody>` + list.map(a => {
-        const deb = a.L.filter(l => l.d), hab = a.L.filter(l => l.h);
-        a.L.forEach(l => { td += l.d; th += l.h; });
-        return `<tr class="ah"><td colspan="5">${dshort(a.d)}, asiento ${a.n}<span>${esc(a.ley)}</span></td></tr>`
-          + deb.map(l => `<tr><td></td><td></td><td class="wrap">${esc(l.c.n)}</td><td>${m2(l.d)}</td><td></td></tr>`).join("")
-          + hab.map(l => `<tr><td></td><td></td><td class="wrap cr">a ${esc(l.c.n)}</td><td></td><td>${m2(l.h)}</td></tr>`).join("");
-      }).join("") + `</tbody><tfoot><tr><td colspan="3">Totales del período</td><td>${m2(td)}</td><td>${m2(th)}</td></tr></tfoot></table>` : `<p class="hint">No hay asientos en este período.</p>`;
-    }
+  async function marcarSaldada(id) {
+    const f = (await getAll()).find(x => x.id === id); if (!f) return;
+    f.estado = "saldada"; f.fechaPago = dStr(new Date()); await put(f);
+    say(`${f.tipo} ${f.puntoVenta}-${f.numero} marcada como ${f.direccion === "emitida" ? "cobrada" : "pagada"} hoy.`);
+    render();
+  }
 
-    if (libro === "mayor") {
-      const cta = plan.find(c => c.cod === selC.value) || plan[0];
-      let saldo = 0;
-      const deudora = cta.t === "A" || cta.t === "RN";
-      const movs = [];
-      for (const a of asientos) for (const l of a.L) if (l.c === cta) {
-        const delta = deudora ? l.d - l.h : l.h - l.d;
-        if (a.d < desde) saldo += delta; else if (enPeriodo(a.d)) movs.push({ a, l });
-      }
-      const ini = saldo;
-      title = `Libro mayor: ${cta.cod} ${cta.n}, ${periodoTxt}`;
-      hint = `${TIPO_CTA[cta.t]}. Saldo de naturaleza ${deudora ? "deudora" : "acreedora"}.`;
-      let td = 0, th = 0;
-      html = `<table class="rt"><thead><tr><th>Fecha</th><th>Asiento</th><th class="wrap">Detalle</th><th>Debe</th><th>Haber</th><th>Saldo</th></tr></thead><tbody>
-        <tr><td></td><td></td><td class="wrap"><b>Saldo anterior</b></td><td></td><td></td><td><b>${nf.format(ini)}</b></td></tr>`
-        + movs.map(({ a, l }) => { saldo += deudora ? l.d - l.h : l.h - l.d; td += l.d; th += l.h; return `<tr><td>${dshort(a.d)}</td><td>${a.n}</td><td class="wrap">${esc(a.ley)}</td><td>${m2(l.d)}</td><td>${m2(l.h)}</td><td class="${saldo < 0 ? "neg" : ""}">${nf.format(saldo)}</td></tr>`; }).join("")
-        + `</tbody><tfoot><tr><td colspan="3">Totales y saldo final</td><td>${m2(td)}</td><td>${m2(th)}</td><td>${nf.format(saldo)}</td></tr></tfoot></table>`;
-    }
+  function renderCtas(all) {
+    $("#ccTabs").querySelectorAll("[data-cc]").forEach(b => b.setAttribute("aria-pressed", b.dataset.cc === ccDir));
+    const cli = ccDir === "emitida", t = hoy0();
+    const P = pendientes(all, ccDir);
+    const accion = cli ? "Marcar cobrada" : "Marcar pagada";
+    const tot = P.reduce((a, x) => a + x.saldo, 0);
+    const venc = P.filter(x => x.venc && x.venc < t), en7 = P.filter(x => x.venc && x.venc >= t && x.venc <= addD(t, 7));
+    const sm = arr => arr.reduce((a, x) => a + x.saldo, 0);
+    const prom = venc.length ? Math.round(venc.reduce((a, x) => a + diasEntre(x.venc, t), 0) / venc.length) : 0;
+    $("#ccTotals").innerHTML = `
+      <div class="big"><dt>${cli ? "Total a cobrar" : "Total a pagar"}</dt><dd>${fmt(tot)}</dd></div>
+      <div><dt>Vencido</dt><dd style="color:var(--danger)">${fmt(sm(venc))}</dd></div>
+      <div><dt>Vence en 7 días</dt><dd>${fmt(sm(en7))}</dd></div>
+      <div><dt>Facturas pendientes</dt><dd>${P.length}</dd></div>
+      <div><dt>Atraso promedio</dt><dd>${venc.length ? prom + " días" : "—"}</dd></div>`;
+    $("#ccQuien").textContent = cli ? "cliente" : "proveedor";
 
-    // Sumas antes del cierre del año elegido: las cuentas patrimoniales acumulan todo; las de resultado, solo el año.
-    const sumsFor = yy => {
-      const ini = new Date(yy, 0, 1), fin = new Date(yy, 11, 31, 23, 59);
-      const sums = new Map(plan.map(c => [c, { d: 0, h: 0 }]));
-      for (const a of asientos) {
-        if (a.d > fin || (a.cierre && a.d.getFullYear() === yy)) continue;
-        for (const l of a.L) {
-          const resul = l.c.t === "RP" || l.c.t === "RN";
-          if (resul && a.d < ini) continue;
-          const s = sums.get(l.c); s.d += l.d; s.h += l.h;
-        }
-      }
-      return sums;
+    // Próximos vencimientos y vencidas
+    const lista = [...P].sort((a, b) => (a.venc || 0) - (b.venc || 0)).filter(x => !x.venc || x.venc <= addD(t, 30));
+    $("#ccProxT").textContent = "Vencidas y próximos 30 días";
+    $("#ccProxH").textContent = cli ? "Facturas que ya deberían estar cobradas o que vencen pronto. Cuando entre el pago, tocá «Marcar cobrada»." : "Facturas que ya deberían estar pagadas o que vencen pronto. Cuando las pagues, tocá «Marcar pagada».";
+    const fila = x => {
+      const d = x.venc ? diasEntre(x.venc, t) : null;
+      const est = d == null ? "—" : d > 0 ? `<td class="late">Vencida hace ${d} ${d === 1 ? "día" : "días"}</td>` : d === 0 ? `<td class="late">Vence hoy</td>` : `<td>Vence en ${-d} ${d === -1 ? "día" : "días"}</td>`;
+      return `<tr><td>${x.venc ? dStr(x.venc) : "—"}</td>${typeof est === "string" && est.startsWith("<td") ? est : `<td>${est}</td>`}<td style="text-align:left"><a href="#" data-ver="${esc(x.f.id)}">${esc(x.f.tipo)} ${esc(x.f.puntoVenta || "")}-${esc(x.f.numero || "")}</a></td><td class="wrap">${esc(cli ? x.f.cliente : x.f.emisor)}</td><td><b>${fmt(x.saldo)}</b></td><td><button class="btn small" type="button" data-ok="${esc(x.f.id)}">${accion}</button></td></tr>`;
     };
-    const cerrado = yy => new Date(yy, 11, 31, 23, 59) < new Date();
+    $("#ccProx").innerHTML = lista.length ? `<table class="rt"><thead><tr><th>Vencimiento</th><th>Estado</th><th style="text-align:left">Comprobante</th><th class="wrap">${cli ? "Cliente" : "Proveedor"}</th><th>Saldo</th><th></th></tr></thead><tbody>${lista.map(fila).join("")}</tbody></table>` : `<p class="hint">No hay nada vencido ni por vencer en los próximos 30 días.</p>`;
 
-    if (libro === "general") {
-      const prev = years.includes(y - 1) ? y - 1 : null;
-      const calc = yy => {
-        const S = sumsFor(yy), sal = n => { const c = plan.find(x => x.n === n); const v = S.get(c); return v ? v.d - v.h : 0; };
-        let resultado = 0; for (const c of plan) if (c.t === "RP" || c.t === "RN") { const v = S.get(c); resultado += v.h - v.d; }
-        const ivaNeto = sal("IVA crédito fiscal") + sal("IVA débito fiscal") + sal("IVA saldo a favor") + sal("IVA a pagar"); // positivo: saldo a favor
-        const r = {
-          caja: sal("Caja") + sal("Banco cuenta corriente"), deud: sal("Deudores por ventas"), ivaFavor: ivaNeto > 0 ? ivaNeto : 0,
-          prov: -sal("Proveedores"), ivaPagar: ivaNeto < 0 ? -ivaNeto : 0,
-          capital: -sal("Capital social"), rna: -sal("Resultados no asignados") - sal("Resultado del ejercicio"), res: resultado
-        };
-        r.act = r.caja + r.deud + r.ivaFavor; r.pas = r.prov + r.ivaPagar; r.pn = r.capital + r.rna + r.res;
-        return r;
-      };
-      const A = calc(y), B = prev ? calc(prev) : null;
-      const z = v => nf.format(Math.abs(v) < 0.005 ? 0 : v);
-      const row = (lbl, k, cls = "") => `<tr class="${cls}"><td class="wrap">${lbl}</td><td>${z(A[k])}</td>${B ? `<td>${z(B[k])}</td>` : ""}</tr>`;
-      const head = (lbl) => `<tr class="ah"><td colspan="${B ? 3 : 2}">${lbl}</td></tr>`;
-      title = `Balance general (estado de situación patrimonial) al 31/12/${y}`;
-      hint = (cerrado(y) ? `Ejercicio ${y} cerrado. ` : `Ejercicio ${y} en curso: muestra cómo quedaría al cierre con los comprobantes cargados hasta hoy. `)
-        + "El IVA se liquida cada mes y se paga el día 20 del mes siguiente; en el balance se presenta neto. Los asientos de cierre de cada ejercicio terminado están en el libro diario, el 31 de diciembre." + (B ? ` Se compara con el ejercicio ${prev}, como en los estados contables.` : "");
-      const cuadra = Math.abs(A.act - (A.pas + A.pn)) < 0.05;
-      html = `<table class="rt"><thead><tr><th class="wrap"></th><th>31/12/${y}</th>${B ? `<th>31/12/${prev}</th>` : ""}</tr></thead><tbody>
-        ${head("Activo")}
-        ${row("Caja y bancos", "caja")}${row("Créditos por ventas", "deud")}${(A.ivaFavor || (B && B.ivaFavor)) ? row("Créditos fiscales (IVA saldo a favor)", "ivaFavor") : ""}
-        ${row("Total del activo", "act", "sub")}
-        ${head("Pasivo")}
-        ${row("Deudas comerciales (proveedores)", "prov")}${(A.ivaPagar || (B && B.ivaPagar)) ? row("Deudas fiscales (IVA a pagar)", "ivaPagar") : ""}
-        ${row("Total del pasivo", "pas", "sub")}
-        ${head("Patrimonio neto")}
-        ${row("Capital social", "capital")}${row("Resultados no asignados (ejercicios anteriores)", "rna")}${row(`Resultado del ejercicio`, "res")}
-        ${row("Total del patrimonio neto", "pn", "sub")}
-        <tr class="res"><td class="wrap">Total del pasivo más patrimonio neto</td><td>${nf.format(A.pas + A.pn)}</td>${B ? `<td>${nf.format(B.pas + B.pn)}</td>` : ""}</tr>
-      </tbody></table>
-      <p class="${cuadra ? "ok" : "down"}" style="margin:12px 0 0">${cuadra ? "✓ Activo = pasivo + patrimonio neto." : "El balance no cierra; revisá los comprobantes marcados con «Revisar datos»."}</p>`;
-    }
+    // Antigüedad de saldos
+    const B = ["Por vencer", "1 a 30 días", "31 a 60 días", "61 a 90 días", "Más de 90 días"];
+    const bucket = x => { const d = x.venc ? diasEntre(x.venc, t) : 0; return d <= 0 ? 0 : d <= 30 ? 1 : d <= 60 ? 2 : d <= 90 ? 3 : 4; };
+    const por = new Map();
+    for (const x of P) { const k = cli ? x.f.cliente : x.f.emisor; if (!por.has(k)) por.set(k, { n: k, b: [0, 0, 0, 0, 0], items: [] }); const r = por.get(k); r.b[bucket(x)] += x.saldo; r.items.push(x); }
+    const rows = [...por.values()].sort((a, b) => b.b.reduce((s, v) => s + v, 0) - a.b.reduce((s, v) => s + v, 0));
+    const T = [0, 0, 0, 0, 0]; rows.forEach(r => r.b.forEach((v, i) => T[i] += v));
+    const cell = (v, i) => v ? `<td class="${i >= 1 ? "late" : ""}">${nf.format(v)}</td>` : "<td>—</td>";
+    $("#ccAging").innerHTML = rows.length ? `<table class="rt"><thead><tr><th class="wrap">${cli ? "Cliente" : "Proveedor"}</th><th>Facturas</th>${B.map(b => `<th>${b}</th>`).join("")}<th>Total</th></tr></thead><tbody>`
+      + rows.map(r => `<tr class="click" data-row="${esc(r.n)}"><td class="wrap">${ccOpen.has(r.n) ? "▾" : "▸"} ${esc(r.n)}</td><td>${r.items.length}</td>${r.b.map(cell).join("")}<td><b>${nf.format(r.b.reduce((s, v) => s + v, 0))}</b></td></tr>`
+        + (ccOpen.has(r.n) ? r.items.sort((a, b) => (a.venc || 0) - (b.venc || 0)).map(x => `<tr class="det"><td class="wrap" colspan="2"><a href="#" data-ver="${esc(x.f.id)}">${esc(x.f.tipo)} ${esc(x.f.puntoVenta || "")}-${esc(x.f.numero || "")}</a> del ${esc(x.f.fecha)}</td><td colspan="4">Vence ${x.venc ? dStr(x.venc) : "—"}</td><td>${fmt(x.saldo)}</td><td><button class="btn small" type="button" data-ok="${esc(x.f.id)}">${accion}</button></td></tr>`).join("") : "")).join("")
+      + `</tbody><tfoot><tr><td>Total</td><td>${P.length}</td>${T.map(v => `<td>${nf.format(v)}</td>`).join("")}<td>${nf.format(tot)}</td></tr></tfoot></table>`
+      : `<p class="hint">${cli ? "Ningún cliente nos debe nada." : "No le debemos nada a ningún proveedor."}</p>`;
 
-    if (libro === "balance" || libro === "resultados") {
-      const sums = sumsFor(y);
-      if (libro === "balance") {
-        title = `Balance de sumas y saldos al 31/12/${y}${cerrado(y) ? ", antes del cierre" : ""}`;
-        hint = "Las cuentas patrimoniales incluyen los saldos de años anteriores; las de resultado muestran solo el año elegido. No incluye los asientos de cierre de este año, para que se vean los saldos de las cuentas de resultado. Si el debe y el haber suman lo mismo, la contabilidad está cuadrada.";
-        let T = { d: 0, h: 0, sd: 0, sa: 0 };
-        const rowsB = plan.map(c => { const s = sums.get(c); const sal = s.d - s.h; T.d += s.d; T.h += s.h; if (sal > 0) T.sd += sal; else T.sa -= sal;
-          return (s.d || s.h) ? `<tr><td>${c.cod}</td><td class="wrap">${esc(c.n)}</td><td>${m2(s.d)}</td><td>${m2(s.h)}</td><td>${sal > 0.004 ? nf.format(sal) : ""}</td><td>${sal < -0.004 ? nf.format(-sal) : ""}</td></tr>` : ""; }).join("");
-        const cuadra = Math.abs(T.d - T.h) < 0.05;
-        html = `<table class="rt"><thead><tr><th>Código</th><th class="wrap">Cuenta</th><th>Debe</th><th>Haber</th><th>Saldo deudor</th><th>Saldo acreedor</th></tr></thead><tbody>${rowsB}</tbody><tfoot><tr><td></td><td class="wrap">Totales</td><td>${m2(T.d)}</td><td>${m2(T.h)}</td><td>${m2(T.sd)}</td><td>${m2(T.sa)}</td></tr></tfoot></table>
-          <p class="${cuadra ? "ok" : "down"}" style="margin:12px 0 0">${cuadra ? "✓ El balance cuadra: el debe y el haber suman lo mismo." : "El balance no cuadra; revisá los comprobantes marcados con «Revisar datos»."}</p>`;
-      } else {
-        title = `Estado de resultados, año ${y}`;
-        hint = "Versión simplificada: toma las compras de lana como costo del período, sin variación de existencias.";
-        const res = c => { const s = sums.get(c); return c.t === "RP" ? s.h - s.d : s.d - s.h; };
-        const ing = plan.filter(c => c.t === "RP"), costo = plan.filter(c => c.t === "RN" && c.key === "G|g9"), gas = plan.filter(c => c.t === "RN" && c.key !== "G|g9");
-        const tI = ing.reduce((a, c) => a + res(c), 0), tC = costo.reduce((a, c) => a + res(c), 0), tG = gas.reduce((a, c) => a + res(c), 0);
-        const line = (c, neg) => `<tr><td class="wrap">${esc(c.n)}</td><td>${neg ? "−" : ""}${nf.format(res(c))}</td></tr>`;
-        const pct = v => tI ? ` <span style="color:var(--muted);font-weight:500">(${(v / tI * 100).toLocaleString("es-AR", { maximumFractionDigits: 1 })} % de las ventas)</span>` : "";
-        html = `<table class="rt"><tbody>
-          <tr class="ah"><td colspan="2">Ingresos por ventas</td></tr>${ing.map(c => line(c)).join("")}
-          <tr class="sub"><td class="wrap">Total de ventas netas</td><td>${nf.format(tI)}</td></tr>
-          <tr class="ah"><td colspan="2">Costo</td></tr>${costo.map(c => line(c, true)).join("") || `<tr><td class="wrap">Compras de lana</td><td>0,00</td></tr>`}
-          <tr class="sub"><td class="wrap">Resultado bruto${pct(tI - tC)}</td><td class="${tI - tC < 0 ? "neg" : ""}">${nf.format(tI - tC)}</td></tr>
-          <tr class="ah"><td colspan="2">Gastos</td></tr>${gas.map(c => line(c, true)).join("")}
-          <tr class="sub"><td class="wrap">Total de gastos</td><td>−${nf.format(tG)}</td></tr>
-          <tr class="res"><td class="wrap">Resultado del ejercicio (${tI - tC - tG >= 0 ? "ganancia" : "pérdida"})${pct(tI - tC - tG)}</td><td class="${tI - tC - tG < 0 ? "neg" : ""}">${nf.format(tI - tC - tG)}</td></tr>
-        </tbody></table>`;
-      }
-    }
-
-    if (libro === "ivav" || libro === "ivac") {
-      const dx = libro === "ivav" ? "emitida" : "recibida";
-      const list = all.filter(f => { const d = toDate(f.fecha); return f.direccion === dx && isFiscal(f) && d && enPeriodo(d) && f.total != null; })
-        .sort((a, b) => toDate(a.fecha) - toDate(b.fecha) || (a.numero || "").localeCompare(b.numero || ""));
-      title = `Libro IVA ${dx === "emitida" ? "ventas" : "compras"}, ${periodoTxt}`;
-      hint = dx === "emitida" ? "Facturas y notas emitidas. Las notas de crédito restan." : "Facturas y notas recibidas. Las facturas C (monotributistas) van completas como no gravado. Los tickets no se incluyen.";
-      const T = { n: 0, i21: 0, i105: 0, io: 0, ex: 0, t: 0 };
-      const rows = list.map(f => {
-        const sg = sign(f), iva = f.iva || 0, total = f.total || 0;
-        let i21 = 0, i105 = 0, io = 0, ex = 0, neto = 0;
-        const letraC = (f.letra || (f.tipo || "").slice(-1)) === "C";
-        if (letraC || !iva) { ex = total; }
-        else {
-          if (f.ivaDet && Object.keys(f.ivaDet).length) { for (const [a, v] of Object.entries(f.ivaDet)) { if (a === "21") i21 += v; else if (a === "10.5") i105 += v; else io += v; } }
-          else { const r = f.neto ? iva / f.neto : 0; if (Math.abs(r - 0.21) < 0.01) i21 = iva; else if (Math.abs(r - 0.105) < 0.01) i105 = iva; else io = iva; }
-          ex = r2(f.exento || 0); neto = r2(total - iva - ex);
-        }
-        const v = { n: sg * neto, i21: sg * i21, i105: sg * i105, io: sg * io, ex: sg * ex, t: sg * total };
-        for (const k in T) T[k] += v[k];
-        const cell = x => x ? `<span class="${x < 0 ? "neg" : ""}">${nf.format(x)}</span>` : "";
-        return `<tr><td>${esc(f.fecha)}</td><td>${esc(f.tipo)} ${esc(f.puntoVenta || "")}-${esc(f.numero || "")}</td><td class="wrap">${esc(dx === "emitida" ? f.cliente : f.emisor)}</td><td>${esc(dx === "emitida" ? f.clienteCuit : f.emisorCuit)}</td><td>${cell(v.n)}</td><td>${cell(v.i21)}</td><td>${cell(v.i105)}</td><td>${cell(v.io)}</td><td>${cell(v.ex)}</td><td><b>${cell(v.t)}</b></td></tr>`;
-      }).join("");
-      html = list.length ? `<table class="rt"><thead><tr><th>Fecha</th><th>Comprobante</th><th class="wrap">${dx === "emitida" ? "Cliente" : "Proveedor"}</th><th>CUIT</th><th>Neto gravado</th><th>IVA 21 %</th><th>IVA 10,5 %</th><th>Otras alícuotas</th><th>No gravado o exento</th><th>Total</th></tr></thead><tbody>${rows}</tbody>
-        <tfoot><tr><td colspan="4">Totales (${list.length} comprobantes)</td><td>${nf.format(T.n)}</td><td>${nf.format(T.i21)}</td><td>${nf.format(T.i105)}</td><td>${nf.format(T.io)}</td><td>${nf.format(T.ex)}</td><td>${nf.format(T.t)}</td></tr></tfoot></table>` : `<p class="hint">No hay comprobantes en este período.</p>`;
-    }
-
-    $("#cTitle").textContent = title; $("#cHint").textContent = hint; $("#cBody").innerHTML = html; contaHTML = html;
+    $("#ctas").querySelectorAll("[data-row]").forEach(tr => tr.onclick = () => { const k = tr.dataset.row; ccOpen.has(k) ? ccOpen.delete(k) : ccOpen.add(k); render(); });
+    $("#ctas").querySelectorAll("[data-ver]").forEach(a => a.onclick = e => { e.preventDefault(); e.stopPropagation(); openDetail(a.dataset.ver); });
+    $("#ctas").querySelectorAll("[data-ok]").forEach(b => b.onclick = e => { e.stopPropagation(); marcarSaldada(b.dataset.ok); });
   }
 
   /* ---------- Base de datos ficticia ---------- */
-  const DEMO_VERSION = "5";
-  const DEMO_GRUPOS = [
-    { id: "g9", nombre: "Compra de lana" }, { id: "g10", nombre: "Fletes y transporte" }, { id: "g11", nombre: "Análisis de laboratorio" },
-    { id: "g3", nombre: "Pago de comisiones" }, { id: "g4", nombre: "Alquileres y servicios" },
-    { id: "g1", nombre: "Honorarios abogado" }, { id: "g2", nombre: "Honorarios contador" }, { id: "g8", nombre: "Gastos varios" },
-    { id: "g5", nombre: "Venta de tops de lana" }, { id: "g6", nombre: "Venta de subproductos" }, { id: "g7", nombre: "Servicio de peinado a façon" }
-  ];
-  const OLD_DEMO_NAMES = { g5: "Comisiones por garantías", g6: "Asesoramiento financiero", g7: "Gastos recuperados" };
+  const DEMO_VERSION = "8";
+  const DEMO_GRUPOS = DEFAULT_CFG.grupos;
+  // grupos de versiones anteriores y a qué grupo nuevo pasan
+  const MAPA_GRUPOS = { g1: "honorarios", g2: "honorarios", g3: "servlana", g4: "servicios", g5: "lanas", g6: "lanas", g7: "servlana", g8: "servicios", g9: "lanas", g10: "fletes", g11: "servlana" };
   function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
   function demoInvoices() {
     const E = cfg.empresa, rnd = rng(20262025), today = new Date();
@@ -1566,41 +1411,47 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
     const end = today.getFullYear() > 2026 ? new Date(2026, 11, 31) : today;
     const estadoPara = (d, dias) => {
       const age = (today - d) / 864e5;
-      if (age > dias + 25 && rnd() > 0.04) return { estado: "saldada", fechaPago: dstr(addDays(d, Math.round(between(5, dias)))) };
+      if (age > dias + 25 && !(age < dias + 130 && rnd() < 0.07)) return { estado: "saldada", fechaPago: dstr(addDays(d, Math.round(between(5, dias)))) };
       return age > dias && rnd() > 0.5 ? { estado: "saldada", fechaPago: dstr(addDays(d, Math.round(between(5, Math.max(6, age - 1))))) } : { estado: "pendiente" };
     };
     const docs = [];
     // renglón: [descripción, precio unitario, alícuota, cantidad]
-    const mkItems = (lst, l) => lst.map(([desc, precio, alic, cant]) => { const q = cant || 1; return { desc, cant: q, precio, alic: l === "C" ? "0" : (alic || "21"), subtotal: Math.round(q * precio * 100) / 100 }; });
+    const sinIva = l => l === "C" || l === "E";
+    const mkItems = (lst, l) => lst.map(([desc, precio, alic, cant]) => { const q = cant || 1; return { desc, cant: q, precio, alic: sinIva(l) ? "0" : (alic || "21"), subtotal: Math.round(q * precio * 100) / 100 }; });
     const base = (o) => {
       const items = mkItems(o.items, o.l), t = totalsOf(items, o.l);
       return { id: "demo-" + docs.length, ejemplo: true, cargada: o.date.getTime(), letra: o.l, tipo: o.tipo || tipoDe(o.k || "F", o.l), fecha: dstr(o.date), _d: o.date,
-        condicionVenta: o.cond || "Transferencia Bancaria", caratula: o.car || "", concepto: cap(o.items[0][0]), items, neto: t.neto, exento: t.exento, ivaDet: t.ivaDet, iva: t.iva, total: t.total, grupo: o.g || "", ...estadoPara(o.date, o.dias || 30) };
+        condicionVenta: o.cond || "Transferencia Bancaria", caratula: o.car || "", concepto: o.items[0][0], items, neto: t.neto, exento: t.exento, ivaDet: t.ivaDet, iva: t.iva, total: t.total, grupo: o.g || "", vencimiento: dstr(addDays(o.date, o.dias || 30)), ...estadoPara(o.date, o.dias || 30) };
     };
 
-    /* --- Emitidas: ventas de una empresa lanera, entre 50 y 100 por año --- */
+    /* --- Emitidas: ventas de lana en el país y exportaciones (entre 50 y 100 por año) --- */
     const C = [
       { n: "HILANDERÍA DEL SUR S.A.", c: "30701112223", iva: "IVA Responsable Inscripto", dom: "Parque Industrial, Lote 14 - Trelew, Chubut", w: 5, buys: ["tm", "tm", "tc", "fa"] },
       { n: "HILADOS FINOS DEL PLATA S.A.", c: "30702223334", iva: "IVA Responsable Inscripto", dom: "Av. Gral. Paz 11250 - Villa Lynch, Bs. As.", w: 4, buys: ["tm", "tm", "fa"] },
-      { n: "TEJEDURÍA PATAGÓNICA S.R.L.", c: "30703334445", iva: "IVA Responsable Inscripto", dom: "Ruta 3 km 1465 - Puerto Madryn, Chubut", w: 4, buys: ["tc", "tm", "bl"] },
-      { n: "TEXTIL LANERA DE LUJÁN S.A.", c: "30704445556", iva: "IVA Responsable Inscripto", dom: "San Martín 1840 - Luján, Bs. As.", w: 3, buys: ["tc", "bl"] },
-      { n: "MANTAS Y FRAZADAS DEL OESTE S.R.L.", c: "30705556667", iva: "IVA Responsable Inscripto", dom: "Av. Rivadavia 22100 - Ituzaingó, Bs. As.", w: 3, buys: ["bl", "bl", "tc"] },
+      { n: "TEJEDURÍA PATAGÓNICA S.R.L.", c: "30703334445", iva: "IVA Responsable Inscripto", dom: "Ruta 3 km 1465 - Puerto Madryn, Chubut", w: 4, buys: ["tc", "tm", "bl", "la"] },
+      { n: "TEXTIL LANERA DE LUJÁN S.A.", c: "30704445556", iva: "IVA Responsable Inscripto", dom: "San Martín 1840 - Luján, Bs. As.", w: 3, buys: ["tc", "bl", "lv"] },
+      { n: "MANTAS Y FRAZADAS DEL OESTE S.R.L.", c: "30705556667", iva: "IVA Responsable Inscripto", dom: "Av. Rivadavia 22100 - Ituzaingó, Bs. As.", w: 3, buys: ["bl", "bl", "tc", "lv"] },
       { n: "LABORATORIOS QUÍMICOS DEL CENTRO S.A.", c: "30706667778", iva: "IVA Responsable Inscripto", dom: "Av. Vélez Sarsfield 4500 - Córdoba", w: 2, buys: ["la"] },
-      { n: "COSMÉTICA NATURAL ANDINA S.A.", c: "30707778889", iva: "IVA Responsable Inscripto", dom: "Calle 7 N° 950 - Parque Industrial Pilar, Bs. As.", w: 2, buys: ["la"] },
       { n: "ARTESANÍAS EN LANA RUCA S.R.L.", c: "30708889990", iva: "IVA Sujeto Exento", dom: "Mitre 455 - San Carlos de Bariloche, Río Negro", w: 1, buys: ["tc", "bl"], small: true }
     ];
+    const EXT = [
+      { n: "LANIFICIO BIELLESE S.P.A.", dom: "Via Cernaia 12 - Biella, Italia", w: 3 },
+      { n: "JIANGSU WOOL TEXTILE CO. LTD.", dom: "Zhangjiagang, Jiangsu, China", w: 2 },
+      { n: "BRADFORD WOOL TRADERS LTD.", dom: "Thornton Road 220 - Bradford, Reino Unido", w: 1 }
+    ];
     const PROD = {
-      tm: { d: "Tops de lana merino peinada 19,5 micrones (kg)", p: 13800, g: "g5", kg: [120, 650] },
-      tc: { d: "Tops de lana Corriedale 27 micrones (kg)", p: 8600, g: "g5", kg: [150, 700] },
-      bl: { d: "Blousse de lana merino (kg)", p: 4300, g: "g6", kg: [80, 400] },
-      la: { d: "Lanolina cruda (grasa de lana) (kg)", p: 2900, g: "g6", kg: [60, 350] },
-      fa: { d: "Servicio de peinado de lana a façon (kg procesado)", p: 1850, g: "g7", kg: [400, 1500] }
+      tm: { d: "Tops de lana merino peinada 19,5 micrones (kg)", p: 13800, g: "lanas", kg: [120, 650] },
+      tc: { d: "Tops de lana Corriedale 27 micrones (kg)", p: 8600, g: "lanas", kg: [150, 700] },
+      lv: { d: "Lana lavada Corriedale (kg)", p: 6900, g: "lanas", kg: [200, 900] },
+      bl: { d: "Blousse de lana merino (kg)", p: 4300, g: "lanas", kg: [80, 400] },
+      la: { d: "Lanolina cruda (grasa de lana) (kg)", p: 2900, g: "lanas", kg: [60, 350] },
+      fa: { d: "Servicio de peinado de lana a façon (kg procesado)", p: 1850, g: "servlana", kg: [400, 1500] }
     };
-    const facturas = [];
+    const facturas = [], exportaciones = [];
     for (let y = 2025; y <= lastYear; y++) {
       const ini = new Date(y, 0, 2), fin = y === end.getFullYear() ? end : new Date(y, 11, 30);
       const span = (fin - ini) / 864e5;
-      const count = Math.round(y === 2025 ? between(62, 72) : between(78, 90));
+      const count = Math.round(y === 2025 ? between(54, 62) : between(68, 76));
       const dates = Array.from({ length: count }, () => addDays(ini, Math.floor(rnd() * span))).sort((a, b) => a - b);
       for (const d of dates) {
         const c = pickW(C), k = PROD[c.buys[Math.floor(rnd() * c.buys.length)]];
@@ -1608,10 +1459,20 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
         const kg = round(between(k.kg[0], k.kg[1]) * (c.small ? 0.08 : 1), 10);
         const precio = round(k.p * factor(d) * between(0.94, 1.08), 10);
         const items = [[k.d, precio, "21", kg]];
-        if (k.g === "g5" && rnd() < 0.3) items.push(["Flete a destino", round(between(40000, 90000) * factor(d), 1000), "21", 1]);
+        if (k.g === "lanas" && rnd() < 0.3) items.push(["Flete a destino", round(between(40000, 90000) * factor(d), 1000), "21", 1]);
         const f = base({ date: d, l, items, g: k.g, dias: 45, cond: rnd() < 0.7 ? "Cuenta Corriente" : "Transferencia Bancaria" });
         Object.assign(f, { direccion: "emitida", generada: true, archivo: "Ejemplo", emisor: E.nombre, emisorCuit: E.cuit, emisorIva: E.iva, emisorDom: E.domicilio, cliente: c.n, clienteCuit: c.c, clienteIva: c.iva, clienteDom: c.dom });
         docs.push(f); facturas.push(f);
+      }
+      // exportaciones: un embarque por mes, más o menos, con factura E
+      for (let m = 0; m < 12; m++) {
+        if (m % 2 === 1 || rnd() < 0.15) continue;
+        const d = new Date(y, m, 5 + Math.floor(rnd() * 20)); if (d > end) break;
+        const c = pickW(EXT), merino = rnd() < 0.7;
+        const kg = round(between(1800, 3600), 10), precio = round((merino ? 14600 : 9200) * factor(d) * between(0.95, 1.06), 10);
+        const f = base({ date: d, l: "E", items: [[(merino ? "Tops de lana merino 19,5 micrones" : "Tops de lana Corriedale 27 micrones") + ", FOB Puerto Madryn (kg)", precio, "0", kg]], g: "lanas", dias: 30, cond: "Carta de crédito" });
+        Object.assign(f, { direccion: "emitida", generada: true, archivo: "Ejemplo", emisor: E.nombre, emisorCuit: E.cuit, emisorIva: E.iva, emisorDom: E.domicilio, cliente: c.n, clienteCuit: "", clienteIva: "Cliente del Exterior", clienteDom: c.dom, caratula: "Embarque " + (exportaciones.length + 1) + " - contenedor de 40 pies" });
+        docs.push(f); facturas.push(f); exportaciones.push(f);
       }
     }
     // notas sobre facturas
@@ -1627,28 +1488,45 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
       Object.assign(n, who, { _ref: ref }); docs.push(n);
     };
     for (let y = 2025; y <= lastYear; y++) {
-      const fy = facturas.filter(f => f._d.getFullYear() === y && f.letra === "A" && f.grupo === "g5");
+      const fy = facturas.filter(f => f._d.getFullYear() === y && f.letra === "A" && f.grupo === "lanas");
       for (let i = 0; i < 3; i++) notaSobre(fy[Math.floor(rnd() * fy.length)], "NC", pickW([{ v: "Bonificación por diferencia de micronaje", w: 2 }, { v: "Devolución parcial de mercadería", w: 1 }, { v: "Bonificación por diferencia de rinde", w: 1 }]).v, between(0.04, 0.1), "emitida");
       for (let i = 0; i < 2; i++) notaSobre(fy[Math.floor(rnd() * fy.length)], "ND", pickW([{ v: "Intereses por pago fuera de término", w: 2 }, { v: "Ajuste de precio por tipo de cambio", w: 1 }]).v, between(0.02, 0.05), "emitida");
     }
 
-    /* --- Recibidas: compras de lana y gastos de planta --- */
+    /* --- Recibidas: según los grupos de la empresa --- */
     const P = {
-      mariposa: { n: "ESTANCIA LA MARIPOSA S.A.", c: "30711223344", iva: "IVA Responsable Inscripto", dom: "Ruta 25 km 180 - Paso de Indios, Chubut", g: "g9", l: "A", pv: "00002" },
-      guanaco: { n: "ESTABLECIMIENTO EL GUANACO S.R.L.", c: "30712334455", iva: "IVA Responsable Inscripto", dom: "Ruta 40 km 1120 - Gobernador Gregores, Santa Cruz", g: "g9", l: "A", pv: "00001" },
-      coop: { n: "COOPERATIVA GANADERA LANERA DEL SUR LTDA.", c: "30713445566", iva: "IVA Responsable Inscripto", dom: "Belgrano 210 - Ingeniero Jacobacci, Río Negro", g: "g9", l: "A", pv: "00004" },
-      consig: { n: "CONSIGNATARIA LANERA AUSTRAL S.A.", c: "30709876542", iva: "IVA Responsable Inscripto", dom: "25 de Mayo 640 - Trelew, Chubut", g: "g3", l: "A", pv: "00005" },
-      flete: { n: "TRANSPORTES PATAGONIA CARGAS S.R.L.", c: "30714556677", iva: "IVA Responsable Inscripto", dom: "Av. Fontana 3300 - Trelew, Chubut", g: "g10", l: "A", pv: "00003" },
-      lab: { n: "LABORATORIO DE ANÁLISIS DE LANAS PATAGONIA S.A.", c: "30715667788", iva: "IVA Responsable Inscripto", dom: "Parque Industrial - Puerto Madryn, Chubut", g: "g11", l: "A", pv: "00001" },
-      torres: { n: "INMOBILIARIA TORRES & HIJOS S.R.L.", c: "30715554443", iva: "IVA Responsable Inscripto", dom: "Av. Santa Fe 3120 - CABA", g: "g4", l: "A", pv: "00001" },
-      luz: { n: "DISTRIBUIDORA ELÉCTRICA DEL VALLE S.A.", c: "30717778889", iva: "IVA Responsable Inscripto", dom: "Rivadavia 390 - Trelew, Chubut", g: "g4", l: "A", pv: "00087" },
-      gas: { n: "GAS DEL SUR DISTRIBUIDORA S.A.", c: "30718889990", iva: "IVA Responsable Inscripto", dom: "San Martín 1100 - Rawson, Chubut", g: "g4", l: "A", pv: "00031" },
-      mendez: { n: "MÉNDEZ LAURA BEATRIZ", c: "27284561239", iva: "Responsable Monotributo", dom: "Av. Corrientes 2210 Of. 8 - CABA", g: "g2", l: "C", pv: "00002" },
-      ferreyra: { n: "ESTUDIO JURÍDICO FERREYRA & ASOCIADOS", c: "30712345678", iva: "IVA Responsable Inscripto", dom: "Tucumán 1455 Piso 3 - CABA", g: "g1", l: "A", pv: "00003" }
+      // Facturas de Lanas
+      mariposa: { n: "ESTANCIA LA MARIPOSA S.A.", c: "30711223344", iva: "IVA Responsable Inscripto", dom: "Ruta 25 km 180 - Paso de Indios, Chubut", g: "lanas", l: "A", pv: "00002" },
+      guanaco: { n: "ESTABLECIMIENTO EL GUANACO S.R.L.", c: "30712334455", iva: "IVA Responsable Inscripto", dom: "Ruta 40 km 1120 - Gobernador Gregores, Santa Cruz", g: "lanas", l: "A", pv: "00001" },
+      coop: { n: "COOPERATIVA GANADERA LANERA DEL SUR LTDA.", c: "30713445566", iva: "IVA Responsable Inscripto", dom: "Belgrano 210 - Ingeniero Jacobacci, Río Negro", g: "lanas", l: "A", pv: "00004" },
+      // Puerto y Embarque
+      terminal: { n: "TERMINAL PORTUARIA PATAGÓNICA S.A.", c: "30719990011", iva: "IVA Responsable Inscripto", dom: "Muelle Almirante Storni - Puerto Madryn, Chubut", g: "puerto", l: "A", pv: "00006" },
+      agencia: { n: "AGENCIA MARÍTIMA DEL ATLÁNTICO S.A.", c: "30720001122", iva: "IVA Responsable Inscripto", dom: "Av. Roca 455 - Puerto Madryn, Chubut", g: "puerto", l: "A", pv: "00002" },
+      despachante: { n: "GARCÍA ROBERTO MARIO (DESPACHANTE DE ADUANA)", c: "20187654329", iva: "IVA Responsable Inscripto", dom: "28 de Julio 120 - Puerto Madryn, Chubut", g: "puerto", l: "A", pv: "00003" },
+      // Fletes
+      flete: { n: "TRANSPORTES PATAGONIA CARGAS S.R.L.", c: "30714556677", iva: "IVA Responsable Inscripto", dom: "Av. Fontana 3300 - Trelew, Chubut", g: "fletes", l: "A", pv: "00003" },
+      flete2: { n: "LOGÍSTICA RUTA 3 S.A.", c: "30721112233", iva: "IVA Responsable Inscripto", dom: "Ruta 3 km 1420 - Trelew, Chubut", g: "fletes", l: "A", pv: "00007" },
+      // Materiales
+      envases: { n: "ENVASES DEL SUR S.R.L.", c: "30722223344", iva: "IVA Responsable Inscripto", dom: "Parque Industrial Pesado - Trelew, Chubut", g: "materiales", l: "A", pv: "00002" },
+      quimica: { n: "QUÍMICA INDUSTRIAL PATAGÓNICA S.A.", c: "30723334455", iva: "IVA Responsable Inscripto", dom: "Av. Hipólito Yrigoyen 2100 - Puerto Madryn, Chubut", g: "materiales", l: "A", pv: "00005" },
+      ferreteria: { n: "FERRETERÍA INDUSTRIAL TRELEW S.R.L.", c: "30724445566", iva: "IVA Responsable Inscripto", dom: "Belgrano 980 - Trelew, Chubut", g: "materiales", l: "A", pv: "00001" },
+      // Servicios sobre la Lana
+      lab: { n: "LABORATORIO DE ANÁLISIS DE LANAS PATAGONIA S.A.", c: "30715667788", iva: "IVA Responsable Inscripto", dom: "Parque Industrial - Puerto Madryn, Chubut", g: "servlana", l: "A", pv: "00001" },
+      lavadero: { n: "LAVADERO DE LANAS CHUBUT S.A.", c: "30725556677", iva: "IVA Responsable Inscripto", dom: "Parque Industrial Liviano - Trelew, Chubut", g: "servlana", l: "A", pv: "00004" },
+      acond: { n: "ACONDICIONADORA PATAGÓNICA S.R.L.", c: "30726667788", iva: "IVA Responsable Inscripto", dom: "Ruta 25 km 4 - Trelew, Chubut", g: "servlana", l: "A", pv: "00002" },
+      consig: { n: "CONSIGNATARIA LANERA AUSTRAL S.A.", c: "30709876542", iva: "IVA Responsable Inscripto", dom: "25 de Mayo 640 - Trelew, Chubut", g: "servlana", l: "A", pv: "00005" },
+      // Servicios
+      torres: { n: "INMOBILIARIA TORRES & HIJOS S.R.L.", c: "30715554443", iva: "IVA Responsable Inscripto", dom: "Av. Santa Fe 3120 - CABA", g: "servicios", l: "A", pv: "00001" },
+      luz: { n: "DISTRIBUIDORA ELÉCTRICA DEL VALLE S.A.", c: "30717778889", iva: "IVA Responsable Inscripto", dom: "Rivadavia 390 - Trelew, Chubut", g: "servicios", l: "A", pv: "00087" },
+      gas: { n: "GAS DEL SUR DISTRIBUIDORA S.A.", c: "30718889990", iva: "IVA Responsable Inscripto", dom: "San Martín 1100 - Rawson, Chubut", g: "servicios", l: "A", pv: "00031" },
+      seguridad: { n: "VIGILANCIA INTEGRAL DEL SUR S.R.L.", c: "30727778899", iva: "IVA Responsable Inscripto", dom: "Pellegrini 455 - Trelew, Chubut", g: "servicios", l: "A", pv: "00003" },
+      // Honorarios
+      mendez: { n: "MÉNDEZ LAURA BEATRIZ (CONTADORA)", c: "27284561239", iva: "Responsable Monotributo", dom: "Av. Corrientes 2210 Of. 8 - CABA", g: "honorarios", l: "C", pv: "00002" },
+      ferreyra: { n: "ESTUDIO JURÍDICO FERREYRA & ASOCIADOS", c: "30712345678", iva: "IVA Responsable Inscripto", dom: "Tucumán 1455 Piso 3 - CABA", g: "honorarios", l: "A", pv: "00003" }
     };
-    const TICKETS = [["ESTACIÓN DE SERVICIO RUTA 3", "Combustible", 42000], ["FERRETERÍA INDUSTRIAL TRELEW", "Repuestos de mantenimiento", 35000], ["LIBRERÍA COMERCIAL CENTRO", "Artículos de librería", 21000], ["CORREO ARGENTINO", "Envío de muestras de lana", 15500], ["PARADOR EL OVEJERO", "Viáticos de compradores en zafra", 58000]];
-    const CAR = ["LEMPRIERE ARGENTINA C/ HILATURA AUSTRAL S.R.L. S/ EJECUTIVO", "TEXTIL ANDINA S.A. S/ CONCURSO PREVENTIVO", "LEMPRIERE ARGENTINA C/ TEJIDOS DEL VALLE S.A. S/ COBRO DE PESOS", "FRAZADAS DEL NORTE S.R.L. S/ QUIEBRA", "LEMPRIERE ARGENTINA C/ GÓMEZ, RAÚL ALBERTO S/ EJECUTIVO", "LEMPRIERE ARGENTINA C/ TRANSPORTES DEL ESTE S.A. S/ DAÑOS Y PERJUICIOS"];
-    const CONC_ABOG = [["Honorarios de inicio", 360000, 3], ["Honorarios profesionales solicitud de verificación", 430000, 2], ["Honorarios por audiencia de conciliación", 280000, 1], ["Honorarios por revisión de contratos de exportación", 390000, 1]];
+    const TICKETS = [["ESTACIÓN DE SERVICIO RUTA 3", "Combustible para camioneta de la planta", 42000, "fletes"], ["FERRETERÍA EL TORNILLO", "Repuestos menores de mantenimiento", 35000, "materiales"], ["LIBRERÍA COMERCIAL CENTRO", "Artículos de librería", 21000, "materiales"], ["CORREO ARGENTINO", "Envío de muestras de lana a clientes", 15500, "servicios"], ["PARADOR EL OVEJERO", "Viáticos de compradores en zafra", 58000, "servicios"]];
+    const CAR = ["LEMPRIERE ARGENTINA C/ HILATURA AUSTRAL S.R.L. S/ EJECUTIVO", "TEXTIL ANDINA S.A. S/ CONCURSO PREVENTIVO", "LEMPRIERE ARGENTINA C/ TEJIDOS DEL VALLE S.A. S/ COBRO DE PESOS", "FRAZADAS DEL NORTE S.R.L. S/ QUIEBRA", "LEMPRIERE ARGENTINA C/ TRANSPORTES DEL ESTE S.A. S/ DAÑOS Y PERJUICIOS"];
+    const CONC_ABOG = [["Honorarios de inicio", 360000, 3], ["Honorarios profesionales solicitud de verificación", 430000, 2], ["Honorarios por revisión de contratos de exportación", 390000, 2]];
     const rec = (who, d, items, extra = {}) => {
       if (d > end) return null;
       const p = P[who];
@@ -1657,35 +1535,51 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
         cliente: E.nombre.toUpperCase(), clienteCuit: E.cuit, clienteIva: E.iva, clienteDom: E.domicilio, cae: String(86350900000000 + docs.length * 7351), _who: who });
       docs.push(f); return f;
     };
-    const ZAFRA = [3, 3, 2, 1, 0.3, 0.2, 0.2, 0.3, 0.6, 1.5, 2.5, 3]; // compras de lana por mes (la esquila es en primavera y verano)
+    const ZAFRA = [1, 1, 0.8, 0.4, 0, 0, 0, 0, 0.2, 0.6, 1, 1]; // compras de lana por mes (la esquila es en primavera y verano)
     for (let y = 2025; y <= lastYear; y++) for (let m = 0; m < 12; m++) {
       const d0 = new Date(y, m, 1); if (d0 > end) break;
       const fx = factor(d0), mesAnt = MESES[(m + 11) % 12];
-      // compra de lana sucia según la zafra
-      let compras = Math.floor(ZAFRA[m]) + (rnd() < ZAFRA[m] % 1 ? 1 : 0);
+      // Facturas de Lanas + servicios sobre la lana + fletes de cada compra
+      const compras = Math.floor(ZAFRA[m]) + (rnd() < ZAFRA[m] % 1 ? 1 : 0);
       for (let i = 0; i < compras; i++) {
         const prov = pickW([{ v: "mariposa", w: 3 }, { v: "guanaco", w: 3 }, { v: "coop", w: 2 }]).v;
         const fino = rnd() < 0.65;
-        const kg = round(between(600, 2800), 10), pr = round((fino ? 5200 : 3300) * fx * between(0.93, 1.07), 10);
+        const kg = round(between(1800, 5200), 10), pr = round((fino ? 5200 : 3300) * fx * between(0.93, 1.07), 10);
         const d = new Date(y, m, 2 + Math.floor(rnd() * 25));
         const fc = rec(prov, d, [[fino ? "Lana sucia merino en vellón, zafra " + (m >= 8 ? y + "/" + (y + 1 - 2000) : (y - 1) + "/" + (y - 2000)) + " (kg)" : "Lana sucia Corriedale en vellón (kg)", pr, "21", kg]], { cond: "Cuenta Corriente", dias: 30 });
         if (!fc) continue;
-        rec("consig", addDays(d, 2), [["Comisión por intermediación en compra de lana (" + fc.emisor.split(" ").slice(0, 3).join(" ") + ")", round(fc.neto * 0.025, 100)]]);
-        rec("flete", addDays(d, 4), [["Flete de lana sucia desde establecimiento a planta (viaje)", round(between(150000, 320000) * fx, 1000), "21", 1]]);
-        rec("lab", addDays(d, 6), [["Análisis de finura, rinde al lavado y largo de mecha (lote)", round(45000 * fx, 100), "21", Math.max(1, Math.round(kg / 1000))]]);
-        if (rnd() < 0.18) notaSobre(fc, "NC", "Ajuste por rinde al lavado inferior al pactado", between(0.02, 0.05), "recibida");
+        rec(rnd() < 0.6 ? "flete" : "flete2", addDays(d, 4), [["Flete de lana sucia desde establecimiento a planta (viaje)", round(between(150000, 320000) * fx, 1000), "21", 1]]);
+        if (rnd() < 0.5) rec("lab", addDays(d, 6), [["Análisis de finura, rinde al lavado y largo de mecha (lote)", round(45000 * fx, 100), "21", Math.max(1, Math.round(kg / 1000))]]);
+        if (rnd() < 0.5) rec("acond", addDays(d, 8), [["Clasificación, acondicionamiento y prensado de fardos (kg)", round(380 * fx, 10), "21", kg]]);
+        if (rnd() < 0.2) rec("lavadero", addDays(d, 12), [["Lavado de lana sucia a façon (kg)", round(820 * fx, 10), "21", round(kg * between(0.3, 0.6), 10)]]);
+        if (rnd() < 0.15) notaSobre(fc, "NC", "Ajuste por rinde al lavado inferior al pactado", between(0.02, 0.05), "recibida");
       }
-      rec("torres", new Date(y, m, 1), [[`Alquiler de depósito de lana de ${MESES[m]}`, round(650000 * fx / 1.18, 1000)]]);
-      rec("luz", new Date(y, m, 14 + Math.floor(rnd() * 4)), [[`Consumo de energía eléctrica de planta de ${mesAnt}`, round(between(300000, 500000) * fx, 100)]]);
-      rec("gas", new Date(y, m, 18 + Math.floor(rnd() * 4)), [[`Consumo de gas industrial (lavadero) de ${mesAnt}`, round(between(250000, 450000) * fx * (m >= 4 && m <= 8 ? 1.4 : 1), 100)]]);
-      rec("mendez", new Date(y, m, 3 + Math.floor(rnd() * 3)), [[`Honorarios por liquidación de impuestos de ${mesAnt}`, round(285000 * fx / 1.1, 1000)]]);
-      if ((m + y) % 4 !== 0) { const c = pickW(CONC_ABOG.map(x => ({ x, w: x[2] }))).x; rec("ferreyra", new Date(y, m, 2 + Math.floor(rnd() * 25)), [[c[0], round(c[1] * fx * between(0.9, 1.15), 1000)]], { car: CAR[Math.floor(rnd() * CAR.length)] }); }
-      if (rnd() < 0.7) { const t = TICKETS[Math.floor(rnd() * TICKETS.length)], d = new Date(y, m, 2 + Math.floor(rnd() * 26)); if (d <= end) docs.push({ id: "demo-" + docs.length, ejemplo: true, cargada: d.getTime(), direccion: "recibida", tipo: "Ticket", archivo: "Ejemplo", fecha: dstr(d), _d: d, emisor: t[0], cliente: E.nombre.toUpperCase(), clienteCuit: E.cuit, concepto: t[1], total: round(t[2] * fx * between(0.8, 1.3), 100), neto: null, iva: null, grupo: "g8", estado: "saldada", fechaPago: dstr(d) }); }
+      // Materiales
+      if (m % 3 === 0) rec("envases", new Date(y, m, 6 + Math.floor(rnd() * 5)), [["Bolsas de polipropileno para fardos de lana", round(1900 * fx, 10), "21", round(between(80, 220), 10)], ["Zunchos y precintos", round(between(30000, 70000) * fx, 100), "21", 1]]);
+      if (m % 4 === 1) rec("quimica", new Date(y, m, 12 + Math.floor(rnd() * 6)), [["Detergente industrial para lavado de lana (litros)", round(2400 * fx, 10), "21", round(between(120, 300), 10)]]);
+      if (m % 6 === 2) rec("ferreteria", new Date(y, m, 3 + Math.floor(rnd() * 22)), [[pickW([{ v: "Repuestos para peinadora (agujas y peines)", w: 2 }, { v: "Correas y rodamientos para cardas", w: 2 }, { v: "Elementos de seguridad para la planta", w: 1 }]).v, round(between(90000, 260000) * fx, 100)]]);
+      // Servicios
+      if (m % 3 === 0) rec("torres", new Date(y, m, 1), [[`Alquiler trimestral de depósito de lana (${MESES[m]} a ${MESES[m + 2]})`, round(3 * 650000 * fx / 1.18, 1000)]]);
+      if (m % 2 === 0) rec("luz", new Date(y, m, 14 + Math.floor(rnd() * 4)), [[`Consumo de energía eléctrica de planta, bimestre ${MESES[(m + 10) % 12]} y ${mesAnt}`, round(between(600000, 1000000) * fx, 100)]]);
+      if (m % 2 === 1) rec("gas", new Date(y, m, 18 + Math.floor(rnd() * 4)), [[`Consumo de gas industrial (lavadero), bimestre ${MESES[(m + 10) % 12]} y ${mesAnt}`, round(between(500000, 900000) * fx * (m >= 4 && m <= 8 ? 1.4 : 1), 100)]]);
+      if (m % 6 === 0) rec("seguridad", new Date(y, m, 2), [[`Servicio de vigilancia de planta y depósito, semestre que empieza en ${MESES[m]}`, round(6 * 310000 * fx, 1000)]]);
+      // Honorarios
+      if (m % 3 === 0) rec("mendez", new Date(y, m, 3 + Math.floor(rnd() * 3)), [[`Honorarios trimestrales por liquidación de impuestos (${MESES[(m + 9) % 12]} a ${mesAnt})`, round(3 * 285000 * fx / 1.1, 1000)]]);
+      if (m % 4 === 2) { const c = pickW(CONC_ABOG.map(x => ({ x, w: x[2] }))).x; rec("ferreyra", new Date(y, m, 2 + Math.floor(rnd() * 25)), [[c[0], round(c[1] * fx * between(0.9, 1.15), 1000)]], { car: CAR[Math.floor(rnd() * CAR.length)] }); }
+      // tickets
+      if (m % 4 === 3) { const t = TICKETS[Math.floor(rnd() * TICKETS.length)], d = new Date(y, m, 2 + Math.floor(rnd() * 26)); if (d <= end) docs.push({ id: "demo-" + docs.length, ejemplo: true, cargada: d.getTime(), direccion: "recibida", tipo: "Ticket", archivo: "Ejemplo", fecha: dstr(d), _d: d, emisor: t[0], cliente: E.nombre.toUpperCase(), clienteCuit: E.cuit, concepto: t[1], total: round(t[2] * fx * between(0.8, 1.3), 100), neto: null, iva: null, grupo: t[3], estado: "saldada", fechaPago: dstr(d) }); }
+    }
+    // Puerto y Embarque + flete a puerto, por cada exportación
+    for (const ex of exportaciones) {
+      const d = ex._d, fx = factor(d);
+      rec(rnd() < 0.5 ? "flete" : "flete2", addDays(d, -3), [["Flete de tops desde planta a Puerto Madryn (contenedor)", round(between(380000, 520000) * fx, 1000), "21", 1]]);
+      rec("terminal", addDays(d, 1), [["Almacenaje, estiba y carga de contenedor de 40 pies", round(between(850000, 1150000) * fx, 1000), "21", 1], ["Tasa de uso de muelle", round(160000 * fx, 1000), "21", 1], ["Gestión de agencia marítima y conocimiento de embarque (B/L)", round(420000 * fx, 1000), "21", 1]]);
+      rec("despachante", addDays(d, 3), [["Honorarios de despacho de exportación y certificado de origen", round(between(280000, 360000) * fx, 1000), "21", 1]]);
     }
 
     /* --- Numeración en orden de fecha --- */
     docs.sort((a, b) => a._d - b._d);
-    const nums = {}, start = { mariposa: 310, guanaco: 145, coop: 2088, consig: 1830, flete: 5420, lab: 960, torres: 640, luz: 7712040, gas: 3304511, mendez: 95, ferreyra: 210 };
+    const nums = {}, start = { terminal: 4410, agencia: 2280, despachante: 905, flete2: 11870, envases: 3390, quimica: 1540, ferreteria: 6630, lavadero: 772, acond: 1205, seguridad: 488,  mariposa: 310, guanaco: 145, coop: 2088, consig: 1830, flete: 5420, lab: 960, torres: 640, luz: 7712040, gas: 3304511, mendez: 95, ferreyra: 210 };
     for (const f of docs) {
       if (!isFiscal(f)) continue;
       const key = (f.direccion === "emitida" ? "E" : (f._who || f.emisorCuit)) + "|" + f.tipo;
@@ -1700,12 +1594,12 @@ table.rt tfoot td { font-weight: 700; border-top: 2px solid var(--line); }
     return docs;
   }
   async function seedDemo() {
-    for (const g of DEMO_GRUPOS) {
-      const ex = cfg.grupos.find(x => x.id === g.id);
-      if (!ex) cfg.grupos.push({ ...g }); else if (OLD_DEMO_NAMES[g.id] && ex.nombre === OLD_DEMO_NAMES[g.id]) ex.nombre = g.nombre;
-    }
-    // reglas de proveedor que apuntaban a grupos viejos de ejemplo
-    for (const k in cfg.reglas) if (!grupoNombre(cfg.reglas[k])) delete cfg.reglas[k];
+    // los grupos quedan exactamente estos siete; lo que estaba en grupos viejos pasa al grupo nuevo equivalente
+    cfg.grupos = DEMO_GRUPOS.map(g => ({ ...g }));
+    for (const k in cfg.reglas) { const nv = MAPA_GRUPOS[cfg.reglas[k]] || cfg.reglas[k]; if (grupoNombre(nv)) cfg.reglas[k] = nv; else delete cfg.reglas[k]; }
+    const prev = await getAll();
+    const mover = prev.filter(f => !String(f.id).startsWith("demo-") && f.grupo && !grupoNombre(f.grupo)).map(f => ({ ...f, grupo: MAPA_GRUPOS[f.grupo] || "" }));
+    if (mover.length) await putMany(mover);
     saveCfg();
     const all = await getAll();
     await removeMany(all.filter(f => String(f.id).startsWith("demo-")).map(f => f.id));
